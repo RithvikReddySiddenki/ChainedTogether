@@ -1,0 +1,78 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/rohan/Purdue/Freshman/Blockchain/ChainedTogether/contracts/DemoDAOToken.sol": {
+      "lastModificationDate": 1771489884837,
+      "contentHash": "2d6fe42e124181abeae3b4526ffcab36",
+      "sourceName": "contracts/DemoDAOToken.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "DemoDAOToken"
+      ]
+    },
+    "/Users/rohan/Purdue/Freshman/Blockchain/ChainedTogether/contracts/MatchRegistry.sol": {
+      "lastModificationDate": 1771489876413,
+      "contentHash": "ccb224239f34b0f52eb26366eec85dd9",
+      "sourceName": "contracts/MatchRegistry.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IERC20",
+        "MatchRegistry"
+      ]
+    }
+  }
+}

@@ -14,8 +14,8 @@ export const wagmiConfig = getDefaultConfig({
   appName: 'ChainedTogether',
   projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID',
   chains: [
+    hardhatLocal as any,
     ...(process.env.NEXT_PUBLIC_ENABLE_TESTNETS === 'true' ? [sepolia] : []),
-    hardhatLocal,
   ],
   ssr: true,
 });

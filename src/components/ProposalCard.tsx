@@ -4,7 +4,8 @@ import { Card, CardContent, CardFooter } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Divider } from './ui/Divider';
-import type { MatchProposal, ProposalStatus } from '@/types';
+import { ProposalStatus } from '@/types';
+import type { MatchProposal } from '@/types';
 
 interface ProposalCardProps {
   proposalId: number;

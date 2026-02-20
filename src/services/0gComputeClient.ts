@@ -394,6 +394,153 @@ export class ZeroGComputeClient {
 
     return ranked;
   }
+
+  /**
+   * Generate match pairs from all profiles based on compatibility
+   * This is the NEW function for the DAO voting model
+   */
+  async generateMatchPairs(params: {
+    allProfiles: Array<{
+      wallet_address: string;
+      name: string;
+      age: number;
+      location: string;
+      image_url: string;
+      answers_json: ExtractedProfile;
+      embedding: number[];
+    }>;
+    pairsToGenerate?: number;
+  }): Promise<
+    Array<{
+      userA: string;
+      userB: string;
+      score: number;
+      compatibility: string[];
+    }>
+  > {
+    const { allProfiles, pairsToGenerate = 10 } = params;
+
+    // PRODUCTION: POST to 0g compute endpoint to generate optimal pairs
+    // const response = await fetch(`${process.env.NEXT_PUBLIC_0G_ENDPOINT}/generate-pairs`, {
+    //   method: 'POST',
+    //   headers: {
+    //     'Authorization': `Bearer ${process.env.NEXT_PUBLIC_0G_API_KEY}`,
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify({ profiles: allProfiles, count: pairsToGenerate })
+    // });
+    // return response.json();
+
+    // MOCK: Generate pairs based on similarity
+    const pairs: Array<{
+      userA: string;
+      userB: string;
+      score: number;
+      compatibility: string[];
+    }> = [];
+
+    // Create all possible pairs and score them
+    const allPossiblePairs: Array<{
+      userA: string;
+      userB: string;
+      score: number;
+      profileA: any;
+      profileB: any;
+    }> = [];
+
+    for (let i = 0; i < allProfiles.length; i++) {
+      for (let j = i + 1; j < allProfiles.length; j++) {
+        const profileA = allProfiles[i];
+        const profileB = allProfiles[j];
+
+        // Calculate compatibility score
+        const embeddingSimilarity = cosineSimilarity(
+          profileA.embedding,
+          profileB.embedding
+        );
+
+        allPossiblePairs.push({
+          userA: profileA.wallet_address,
+          userB: profileB.wallet_address,
+          score: embeddingSimilarity,
+          profileA,
+          profileB,
+        });
+      }
+    }
+
+    // Sort by score and take top N
+    allPossiblePairs.sort((a, b) => b.score - a.score);
+    const topPairs = allPossiblePairs.slice(0, pairsToGenerate);
+
+    // Generate compatibility reasons for each pair
+    for (const pair of topPairs) {
+      const compatibility = this.findCompatibilityReasons(
+        pair.profileA.answers_json,
+        pair.profileB.answers_json
+      );
+
+      pairs.push({
+        userA: pair.userA,
+        userB: pair.userB,
+        score: pair.score,
+        compatibility,
+      });
+    }
+
+    return pairs;
+  }
+
+  /**
+   * Find common interests and values between two profiles
+   */
+  private findCompatibilityReasons(
+    profileA: ExtractedProfile,
+    profileB: ExtractedProfile
+  ): string[] {
+    const reasons: string[] = [];
+
+    // Common interests
+    const commonInterests = profileA.interests.filter((interest) =>
+      profileB.interests.includes(interest)
+    );
+    if (commonInterests.length > 0) {
+      reasons.push(`Shared interests: ${commonInterests.join(', ')}`);
+    }
+
+    // Common values
+    const commonValues = profileA.values.filter((value) =>
+      profileB.values.includes(value)
+    );
+    if (commonValues.length > 0) {
+      reasons.push(`Common values: ${commonValues.join(', ')}`);
+    }
+
+    // Similar lifestyle
+    const commonLifestyle = profileA.lifestyle.filter((item) =>
+      profileB.lifestyle.includes(item)
+    );
+    if (commonLifestyle.length > 0) {
+      reasons.push(`Similar lifestyle: ${commonLifestyle.join(', ')}`);
+    }
+
+    // Compatible communication styles
+    if (profileA.communicationStyle === profileB.communicationStyle) {
+      reasons.push(`Both prefer ${profileA.communicationStyle} communication`);
+    }
+
+    // Similar goals
+    if (profileA.goals === profileB.goals) {
+      reasons.push(`Aligned on: ${profileA.goals}`);
+    }
+
+    // If no specific reasons, give generic one
+    if (reasons.length === 0) {
+      reasons.push('Compatible personalities based on AI analysis');
+    }
+
+    return reasons;
+  }
 }
 
 // Export singleton instance

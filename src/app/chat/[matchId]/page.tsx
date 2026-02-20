@@ -85,7 +85,7 @@ export default function ChatPage() {
         .single();
 
       if (error) throw error;
-      setOtherProfile(profile);
+      setOtherProfile(profile as Profile);
 
       // Load messages
       await loadMessages();

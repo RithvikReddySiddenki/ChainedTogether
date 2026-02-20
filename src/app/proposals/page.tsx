@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { Card, CardContent } from '@/components/ui/Card';
 import { WalletConnect } from '@/components/WalletConnect';
 import { ProposalCard } from '@/components/ProposalCard';
@@ -18,18 +18,14 @@ export default function ProposalsPage() {
   const { writeContract, data: txHash } = useWriteContract();
   const { isLoading: isTxPending } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // Read proposal count
-  const { data: proposalCount } = useReadContract({
-    address: CONTRACT_ADDRESSES.matchRegistry,
-    abi: MATCH_REGISTRY_ABI,
-    functionName: 'proposalCount',
-  });
+  // Proposal count - loaded from Supabase instead of contract
+  const proposalCount = 0;
 
   useEffect(() => {
-    if (isConnected && proposalCount !== undefined) {
+    if (isConnected) {
       loadProposals();
     }
-  }, [isConnected, proposalCount]);
+  }, [isConnected]);
 
   async function loadProposals() {
     try {

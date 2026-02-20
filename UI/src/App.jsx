@@ -1,17 +1,8 @@
-'use client';
-
 import { useState, useEffect, useRef, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import { Canvas } from '@react-three/fiber';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
-
-// Dynamic import the entire canvas + scene to avoid SSR issues with Three.js
-const GlobeCanvas = dynamic(() => import('@/components/GlobeCanvas'), {
-  ssr: false,
-  loading: () => (
-    <div style={{ position: 'absolute', inset: 0, background: '#070b14' }} />
-  ),
-});
+import GlobeScene from './components/GlobeScene';
+import MatchScene from './components/MatchScene';
 
 // ─── Stage Timeline ──────────────────────────────────────
 // globe   → 0s – 3s    : Rotating globe with nodes
@@ -25,14 +16,14 @@ const STAGE_TIMINGS = {
   island: 2000,
 };
 
-export default function Home() {
-  const router = useRouter();
+export default function App() {
+  const [currentView, setCurrentView] = useState('intro'); // 'intro' | 'match'
   const [stage, setStage] = useState('globe');
   const [zoomProgress, setZoomProgress] = useState(0);
   const [showLanding, setShowLanding] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const startTime = useRef(Date.now());
-  const rafRef = useRef<number | null>(null);
+  const rafRef = useRef(null);
 
   useEffect(() => {
     const tick = () => {
@@ -67,20 +58,44 @@ export default function Home() {
 
   const handleGetStarted = useCallback(() => {
     setIsTransitioning(true);
+    // After fade-out completes, switch to match view
     setTimeout(() => {
-      router.push('/vote');
+      setCurrentView('match');
     }, 800);
-  }, [router]);
+  }, []);
 
+  // ─── Match View ─────────────────────────────────────
+  if (currentView === 'match') {
+    return (
+      <motion.div
+        className="w-full h-full"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
+      >
+        <MatchScene />
+      </motion.div>
+    );
+  }
+
+  // ─── Intro View ────────────────────────────────────
   return (
     <motion.div
-      className="relative w-screen h-screen overflow-hidden"
-      style={{ background: '#070b14' }}
+      className="relative w-full h-full overflow-hidden bg-obsidian"
       animate={{ opacity: isTransitioning ? 0 : 1 }}
       transition={{ duration: 0.8 }}
     >
       {/* ─── Three.js Canvas ─────────────────────────── */}
-      <GlobeCanvas stage={stage} progress={zoomProgress} />
+      <Canvas
+        camera={{ position: [0, 0.5, 6], fov: 50, near: 0.1, far: 100 }}
+        dpr={[1, 2]}
+        gl={{ antialias: true, alpha: false }}
+        style={{ position: 'absolute', inset: 0 }}
+      >
+        <color attach="background" args={['#070b14']} />
+        <fog attach="fog" args={['#070b14', 8, 20]} />
+        <GlobeScene stage={stage} progress={zoomProgress} />
+      </Canvas>
 
       {/* ─── Vignette overlay ────────────────────────── */}
       <div

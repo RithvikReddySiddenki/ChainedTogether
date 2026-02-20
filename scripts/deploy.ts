@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+const { ethers } = require("hardhat");
 
 async function main() {
   console.log("Deploying ChainedTogether contracts...\n");
@@ -16,13 +16,9 @@ async function main() {
   const daoTokenAddress = await daoToken.getAddress();
   console.log("DemoDAOToken deployed to:", daoTokenAddress);
 
-  // Mint tokens to demo voters (replace with actual addresses)
-  const voterAddresses = [
-    deployer.address, // Deployer gets tokens
-    // Add 3-5 more voter addresses here
-    // "0x...",
-    // "0x...",
-  ];
+  // Mint tokens to 10 demo voters (first 10 Hardhat accounts)
+  const signers = await ethers.getSigners();
+  const voterAddresses = signers.slice(0, 10).map(s => s.address);
 
   console.log("\nMinting DAO tokens to voters...");
   const tokensPerVoter = ethers.parseEther("100"); // 100 tokens per voter
@@ -33,8 +29,8 @@ async function main() {
 
   // Deploy Match Registry
   console.log("\nDeploying MatchRegistry...");
-  const yesThreshold = 3; // Need 3 yes votes for approval
-  const noThreshold = 3;  // 3 no votes for rejection
+  const yesThreshold = 5; // Need 5 yes votes for approval (5/10)
+  const noThreshold = 5;  // 5 no votes for rejection
   const voteDurationSeconds = 600; // 10 minutes for demo
 
   const MatchRegistry = await ethers.getContractFactory("MatchRegistry");

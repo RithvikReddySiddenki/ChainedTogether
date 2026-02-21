@@ -1,12 +1,16 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, Scale, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Scale, Loader2, Clock } from 'lucide-react';
+
+const APPROVAL_THRESHOLD = 5;
+const REJECTION_THRESHOLD = 5;
 
 function getConsensusStatus(approves: number, rejects: number) {
-  if (approves > rejects) return 'approved' as const;
-  if (rejects > approves) return 'rejected' as const;
-  return 'tied' as const;
+  if (approves >= APPROVAL_THRESHOLD) return 'approved' as const;
+  if (rejects >= REJECTION_THRESHOLD) return 'rejected' as const;
+  if (approves + rejects > 0) return 'pending' as const;
+  return 'pending' as const;
 }
 
 const STATUS_CONFIG = {
@@ -30,6 +34,13 @@ const STATUS_CONFIG = {
     bgColor: 'rgba(251, 191, 36, 0.15)',
     borderColor: 'rgba(251, 191, 36, 0.3)',
     Icon: Scale,
+  },
+  pending: {
+    label: 'Voting',
+    color: '#60a5fa',
+    bgColor: 'rgba(96, 165, 250, 0.15)',
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+    Icon: Clock,
   },
 };
 
@@ -186,11 +197,15 @@ export default function ConsensusBanner({
                   color: loading ? 'rgba(255, 255, 255, 0.5)' : config.color,
                 }}
               >
-                {loading ? 'Loading' : config.label}
+                {loading
+                  ? 'Loading'
+                  : status === 'pending'
+                    ? `Voting (${approves}/${APPROVAL_THRESHOLD} yesses)`
+                    : config.label}
               </span>
             </div>
 
-            {/* Progress bar */}
+            {/* Progress bar — shows progress toward threshold */}
             {total > 0 && !loading && (
               <div
                 className="w-24 h-1.5 rounded-full overflow-hidden"
@@ -199,8 +214,16 @@ export default function ConsensusBanner({
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${approvePercent}%`,
-                    background: 'linear-gradient(90deg, #34d399, #22d3ee)',
+                    width: status === 'pending'
+                      ? `${Math.min(100, Math.round((Math.max(approves, rejects) / APPROVAL_THRESHOLD) * 100))}%`
+                      : '100%',
+                    background: status === 'approved'
+                      ? 'linear-gradient(90deg, #34d399, #22d3ee)'
+                      : status === 'rejected'
+                        ? 'linear-gradient(90deg, #f87171, #fb923c)'
+                        : approves >= rejects
+                          ? 'linear-gradient(90deg, #34d399, #22d3ee)'
+                          : 'linear-gradient(90deg, #f87171, #fb923c)',
                   }}
                 />
               </div>

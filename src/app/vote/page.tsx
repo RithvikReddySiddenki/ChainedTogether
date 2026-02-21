@@ -124,10 +124,10 @@ const DEMO_PAIRS: PairData[] = [
 function getDemoVotes(): Record<number, { approves: number; rejects: number }> {
   const votes: Record<number, { approves: number; rejects: number }> = {};
   DEMO_PAIRS.forEach((_, i) => {
-    votes[i] = {
-      approves: Math.floor(Math.random() * 20) + 2,
-      rejects: Math.floor(Math.random() * 8),
-    };
+    const totalVoters = 10;
+    const cast = Math.floor(Math.random() * totalVoters) + 1; // 1-10 votes cast
+    const approves = Math.floor(Math.random() * (cast + 1));  // 0 to cast
+    votes[i] = { approves, rejects: cast - approves };
   });
   return votes;
 }
@@ -761,18 +761,143 @@ function MatchesView() {
   );
 }
 
-function ProfileTab() {
+function ProfileTab({ walletAddress }: { walletAddress?: string }) {
+  const [profile, setProfile] = useState<any>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+  useEffect(() => {
+    if (!walletAddress) return;
+    (async () => {
+      setLoadingProfile(true);
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single();
+      setProfile(data);
+      setLoadingProfile(false);
+    })();
+  }, [walletAddress]);
+
+  if (loadingProfile) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div
+          className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: '#c4b5fd', borderTopColor: 'transparent' }}
+        />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 px-6">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{ background: '#F2F2F7' }}
+        >
+          <User size={28} color="#AEAEB2" strokeWidth={1.5} />
+        </div>
+        <h3 className="text-lg font-semibold" style={{ color: '#1C1C1E' }}>
+          No Profile Yet
+        </h3>
+        <p className="text-sm text-center max-w-xs" style={{ color: '#6E6E73' }}>
+          Create your profile to let the community know who you are.
+        </p>
+        <motion.button
+          className="px-6 py-2.5 rounded-full text-sm font-semibold"
+          style={{
+            background: 'linear-gradient(135deg, #a78bfa, #c084fc)',
+            color: 'white',
+          }}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={() => (window.location.href = '/profile')}
+        >
+          Create Profile
+        </motion.button>
+      </div>
+    );
+  }
+
+  const interests: string[] = profile.answers_json?.interests || [];
+  const tags = interests.length > 0 ? interests.slice(0, 5) : [];
+  const userBio =
+    profile.bio ||
+    profile.answers_json?.goals ||
+    'Looking for meaningful connections.';
+  const initials = getInitials(profile.name || 'AN');
+  const grad = CARD_GRADIENTS[
+    Math.abs(walletAddress?.charCodeAt(2) || 0) % CARD_GRADIENTS.length
+  ];
+
   return (
-    <div className="p-6">
-      <h2
-        className="text-xl font-bold mb-4"
-        style={{ color: '#1C1C1E' }}
+    <div className="flex flex-col items-center px-6 pt-6 pb-24 overflow-y-auto h-full">
+      <div
+        className="w-full max-w-sm rounded-3xl overflow-hidden"
+        style={{
+          background: 'white',
+          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.08)',
+        }}
       >
-        Your Profile
-      </h2>
-      <p className="text-sm" style={{ color: '#6E6E73' }}>
-        Profile settings and preferences.
-      </p>
+        <div
+          className="h-32 flex items-center justify-center"
+          style={{
+            background: `linear-gradient(160deg, ${grad.from}, ${grad.to})`,
+          }}
+        >
+          <span className="text-white/30 text-6xl font-extralight select-none">
+            {initials}
+          </span>
+        </div>
+        <div className="px-6 pt-5 pb-6">
+          <h3 className="text-xl font-bold" style={{ color: '#1C1C1E' }}>
+            {profile.name}, {profile.age}
+          </h3>
+          <p className="text-sm mt-0.5" style={{ color: '#6E6E73' }}>
+            {profile.location}
+          </p>
+          <p
+            className="text-sm mt-4 leading-relaxed"
+            style={{ color: '#3a3a3c', lineHeight: '1.65' }}
+          >
+            {userBio}
+          </p>
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4">
+              {tags.map((tag: string) => (
+                <span
+                  key={tag}
+                  className="text-xs font-medium px-3 py-1.5 rounded-full"
+                  style={{ background: '#F2F2F7', color: '#1C1C1E' }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div
+        className="mt-4 px-4 py-2 rounded-full text-xs font-mono"
+        style={{ background: '#F2F2F7', color: '#6E6E73' }}
+      >
+        {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+      </div>
+      <motion.button
+        className="mt-5 px-8 py-2.5 rounded-full text-sm font-semibold"
+        style={{
+          background: 'white',
+          border: '1.5px solid #E5E5EA',
+          color: '#1C1C1E',
+        }}
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => (window.location.href = '/profile')}
+      >
+        Edit Profile
+      </motion.button>
     </div>
   );
 }
@@ -1397,7 +1522,7 @@ export default function VotePage() {
               </div>
               <div className="flex-1 overflow-hidden">
                 {activeTab === 'matches' && <MatchesView />}
-                {activeTab === 'profile' && <ProfileTab />}
+                {activeTab === 'profile' && <ProfileTab walletAddress={address} />}
                 {activeTab === 'messages' && <DMTab />}
               </div>
             </motion.div>

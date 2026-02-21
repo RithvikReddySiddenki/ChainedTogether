@@ -21,6 +21,12 @@ import {
   Link2,
   User,
   MessageCircle,
+  Heart,
+  HeartOff,
+  Check,
+  Clock,
+  ArrowLeft,
+  Loader2,
 } from 'lucide-react';
 import { WalletConnect } from '@/components/WalletConnect';
 import ConsensusBanner from '@/components/ConsensusBanner';
@@ -745,18 +751,264 @@ function PairSection({
 }
 
 // ─── Tab Panel Stubs ────────────────────────────────────
-function MatchesView() {
+function MatchesView({ walletAddress }: { walletAddress?: string }) {
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<Map<string, any>>(new Map());
+  const [loadingMatches, setLoadingMatches] = useState(true);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+
+  const loadConversations = useCallback(async () => {
+    if (!walletAddress) return;
+    const w = walletAddress.toLowerCase();
+    setLoadingMatches(true);
+
+    // Fetch conversations where user is either party
+    const { data: convos, error: convoErr } = await supabase
+      .from('conversations')
+      .select('*')
+      .or(`user_a_address.eq.${w},user_b_address.eq.${w}`)
+      .order('unlocked_at', { ascending: false });
+
+    if (convoErr) console.error('[MatchesView] Query error:', convoErr.message);
+
+    if (!convos || convos.length === 0) {
+      setConversations([]);
+      setLoadingMatches(false);
+      return;
+    }
+
+    // Gather other party addresses
+    const otherAddresses = new Set<string>();
+    convos.forEach((c) => {
+      const other = c.user_a_address === w ? c.user_b_address : c.user_a_address;
+      otherAddresses.add(other);
+    });
+
+    const { data: profs } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('wallet_address', Array.from(otherAddresses));
+
+    const pMap = new Map<string, any>();
+    (profs || []).forEach((p) => pMap.set(p.wallet_address.toLowerCase(), p));
+
+    setProfiles(pMap);
+    setConversations(convos);
+    setLoadingMatches(false);
+  }, [walletAddress]);
+
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  const handleAcceptDecline = async (convo: any, accept: boolean) => {
+    if (!walletAddress) return;
+    const w = walletAddress.toLowerCase();
+    setUpdatingId(convo.id);
+
+    const isA = convo.user_a_address === w;
+    const field = isA ? 'user_a_accepted' : 'user_b_accepted';
+
+    await supabase
+      .from('conversations')
+      .update({ [field]: accept })
+      .eq('id', convo.id);
+
+    // unlocked_at is set automatically by DB default on insert,
+    // so messaging becomes available as soon as both accept.
+
+    setUpdatingId(null);
+    loadConversations();
+  };
+
+  if (loadingMatches) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div
+          className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: '#c4b5fd', borderTopColor: 'transparent' }}
+        />
+      </div>
+    );
+  }
+
+  if (conversations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 px-6">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{ background: '#F2F2F7' }}
+        >
+          <Heart size={28} color="#AEAEB2" strokeWidth={1.5} />
+        </div>
+        <h3 className="text-lg font-semibold" style={{ color: '#1C1C1E' }}>
+          No Matches Yet
+        </h3>
+        <p className="text-sm text-center max-w-xs" style={{ color: '#6E6E73' }}>
+          When the community approves a match for you, it will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  const w = walletAddress!.toLowerCase();
+
   return (
-    <div className="p-6">
-      <h2
-        className="text-xl font-bold mb-4"
-        style={{ color: '#1C1C1E' }}
-      >
-        Your Matches
-      </h2>
-      <p className="text-sm" style={{ color: '#6E6E73' }}>
-        Approved matches will appear here. Check back after the community votes!
-      </p>
+    <div className="flex flex-col h-full">
+      <div className="px-6 pt-4 pb-3">
+        <h2 className="text-xl font-bold" style={{ color: '#1C1C1E' }}>
+          Your Matches
+        </h2>
+        <p className="text-xs mt-1" style={{ color: '#6E6E73' }}>
+          Accept or decline DAO-approved matches
+        </p>
+      </div>
+      <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-3">
+        {conversations.map((convo) => {
+          const otherAddr =
+            convo.user_a_address === w ? convo.user_b_address : convo.user_a_address;
+          const other = profiles.get(otherAddr);
+          const isA = convo.user_a_address === w;
+          const myAccepted = isA ? convo.user_a_accepted : convo.user_b_accepted;
+          const theirAccepted = isA ? convo.user_b_accepted : convo.user_a_accepted;
+          const bothAccepted = myAccepted === true && theirAccepted === true;
+          const iDeclined = myAccepted === false;
+          const theyDeclined = theirAccepted === false;
+
+          const grad =
+            CARD_GRADIENTS[
+              Math.abs(otherAddr.charCodeAt(2) || 0) % CARD_GRADIENTS.length
+            ];
+          const initials = getInitials(other?.name || 'AN');
+          const interests: string[] = other?.answers_json?.interests || [];
+
+          return (
+            <div
+              key={convo.id}
+              className="rounded-2xl overflow-hidden"
+              style={{
+                background: 'white',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                border: '1px solid #F2F2F7',
+              }}
+            >
+              <div className="flex items-center gap-4 p-4">
+                {/* Avatar */}
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{
+                    background: `linear-gradient(135deg, ${grad.from}, ${grad.to})`,
+                  }}
+                >
+                  <span className="text-white/80 text-lg font-semibold">
+                    {initials}
+                  </span>
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-[15px] font-semibold" style={{ color: '#1C1C1E' }}>
+                    {other?.name || 'Anonymous'}{other?.age ? `, ${other.age}` : ''}
+                  </h3>
+                  <p
+                    className="text-xs mt-0.5 truncate"
+                    style={{ color: '#6E6E73' }}
+                  >
+                    {other?.bio || other?.answers_json?.goals || 'Looking for meaningful connections.'}
+                  </p>
+                  {interests.length > 0 && (
+                    <div className="flex gap-1.5 mt-1.5">
+                      {interests.slice(0, 3).map((tag: string) => (
+                        <span
+                          key={tag}
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                          style={{ background: '#F2F2F7', color: '#6E6E73' }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Status / Actions */}
+                <div className="flex-shrink-0">
+                  {bothAccepted ? (
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                      style={{ background: 'rgba(52, 211, 153, 0.12)' }}
+                    >
+                      <Check size={14} color="#34d399" strokeWidth={2.5} />
+                      <span className="text-xs font-semibold" style={{ color: '#34d399' }}>
+                        Matched
+                      </span>
+                    </div>
+                  ) : iDeclined || theyDeclined ? (
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                      style={{ background: 'rgba(248, 113, 113, 0.12)' }}
+                    >
+                      <HeartOff size={14} color="#f87171" strokeWidth={2} />
+                      <span className="text-xs font-semibold" style={{ color: '#f87171' }}>
+                        Declined
+                      </span>
+                    </div>
+                  ) : myAccepted === true ? (
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                      style={{ background: 'rgba(96, 165, 250, 0.12)' }}
+                    >
+                      <Clock size={14} color="#60a5fa" strokeWidth={2} />
+                      <span className="text-xs font-semibold" style={{ color: '#60a5fa' }}>
+                        Waiting
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <motion.button
+                        className="w-10 h-10 rounded-full flex items-center justify-center"
+                        style={{
+                          background: 'rgba(248, 113, 113, 0.1)',
+                          border: '1px solid rgba(248, 113, 113, 0.2)',
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleAcceptDecline(convo, false)}
+                        disabled={updatingId === convo.id}
+                        aria-label="Decline match"
+                      >
+                        {updatingId === convo.id ? (
+                          <Loader2 size={16} color="#f87171" className="animate-spin" />
+                        ) : (
+                          <X size={18} color="#f87171" strokeWidth={2} />
+                        )}
+                      </motion.button>
+                      <motion.button
+                        className="w-10 h-10 rounded-full flex items-center justify-center"
+                        style={{
+                          background: 'rgba(52, 211, 153, 0.1)',
+                          border: '1px solid rgba(52, 211, 153, 0.2)',
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleAcceptDecline(convo, true)}
+                        disabled={updatingId === convo.id}
+                        aria-label="Accept match"
+                      >
+                        {updatingId === convo.id ? (
+                          <Loader2 size={16} color="#34d399" className="animate-spin" />
+                        ) : (
+                          <Heart size={18} color="#34d399" strokeWidth={2} />
+                        )}
+                      </motion.button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -902,18 +1154,389 @@ function ProfileTab({ walletAddress }: { walletAddress?: string }) {
   );
 }
 
-function DMTab() {
+function DMTab({ walletAddress }: { walletAddress?: string }) {
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<Map<string, any>>(new Map());
+  const [loadingDMs, setLoadingDMs] = useState(true);
+  const [activeConvoId, setActiveConvoId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const w = (walletAddress || '').toLowerCase();
+
+  // Load unlocked conversations (both accepted)
+  const loadConvos = useCallback(async () => {
+    if (!walletAddress) return;
+    setLoadingDMs(true);
+
+    // Only show conversations where both users have accepted the match
+    const { data: convos } = await supabase
+      .from('conversations')
+      .select('*')
+      .or(`user_a_address.eq.${w},user_b_address.eq.${w}`)
+      .eq('user_a_accepted', true)
+      .eq('user_b_accepted', true)
+      .order('last_message_at', { ascending: false, nullsFirst: false });
+
+    if (!convos || convos.length === 0) {
+      setConversations([]);
+      setLoadingDMs(false);
+      return;
+    }
+
+    const otherAddresses = new Set<string>();
+    convos.forEach((c) => {
+      const other = c.user_a_address === w ? c.user_b_address : c.user_a_address;
+      otherAddresses.add(other);
+    });
+
+    const { data: profs } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('wallet_address', Array.from(otherAddresses));
+
+    const pMap = new Map<string, any>();
+    (profs || []).forEach((p) => pMap.set(p.wallet_address.toLowerCase(), p));
+
+    setProfiles(pMap);
+    setConversations(convos);
+    setLoadingDMs(false);
+  }, [walletAddress, w]);
+
+  useEffect(() => {
+    loadConvos();
+  }, [loadConvos]);
+
+  // Load messages for active conversation
+  const loadMessages = useCallback(async () => {
+    if (!activeConvoId) return;
+
+    const { data: msgs } = await supabase
+      .from('conversation_messages')
+      .select('*')
+      .eq('conversation_id', activeConvoId)
+      .order('sent_at', { ascending: true });
+
+    setMessages(msgs || []);
+  }, [activeConvoId]);
+
+  // Open a conversation
+  const openConvo = useCallback(
+    (convoId: number) => {
+      setActiveConvoId(convoId);
+      setMessages([]);
+      setLoadingMessages(true);
+    },
+    []
+  );
+
+  // When activeConvoId changes, load messages and start polling
+  useEffect(() => {
+    if (!activeConvoId) return;
+
+    (async () => {
+      await loadMessages();
+      setLoadingMessages(false);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    })();
+
+    // Poll for new messages every 3s
+    pollRef.current = setInterval(loadMessages, 3000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [activeConvoId, loadMessages]);
+
+  // Auto-scroll when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  // Send message
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !activeConvoId || !walletAddress || sending) return;
+    setSending(true);
+
+    const text = newMessage.trim();
+    setNewMessage('');
+
+    await supabase.from('conversation_messages').insert({
+      conversation_id: activeConvoId,
+      sender_address: w,
+      message: text,
+    });
+
+    // Update last_message_at
+    await supabase
+      .from('conversations')
+      .update({ last_message_at: new Date().toISOString() })
+      .eq('id', activeConvoId);
+
+    setSending(false);
+    await loadMessages();
+    messageInputRef.current?.focus();
+  };
+
+  if (loadingDMs) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div
+          className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: '#c4b5fd', borderTopColor: 'transparent' }}
+        />
+      </div>
+    );
+  }
+
+  // ── Chat view ─────────────────────────────────────
+  if (activeConvoId !== null) {
+    const convo = conversations.find((c) => c.id === activeConvoId);
+    const otherAddr = convo
+      ? convo.user_a_address === w
+        ? convo.user_b_address
+        : convo.user_a_address
+      : '';
+    const other = profiles.get(otherAddr);
+    const grad =
+      CARD_GRADIENTS[
+        Math.abs((otherAddr || '').charCodeAt(2) || 0) % CARD_GRADIENTS.length
+      ];
+
+    return (
+      <div className="flex flex-col h-full">
+        {/* Chat header */}
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ borderBottom: '1px solid #F2F2F7' }}
+        >
+          <motion.button
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ background: '#F2F2F7' }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              setActiveConvoId(null);
+              if (pollRef.current) clearInterval(pollRef.current);
+            }}
+            aria-label="Back to conversations"
+          >
+            <ArrowLeft size={16} color="#1C1C1E" strokeWidth={2} />
+          </motion.button>
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{
+              background: `linear-gradient(135deg, ${grad.from}, ${grad.to})`,
+            }}
+          >
+            <span className="text-white/80 text-sm font-semibold">
+              {getInitials(other?.name || 'AN')}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-[15px] font-semibold" style={{ color: '#1C1C1E' }}>
+              {other?.name || 'Anonymous'}
+            </h3>
+          </div>
+        </div>
+
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {loadingMessages && (
+            <div className="flex items-center justify-center py-8">
+              <div
+                className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+                style={{ borderColor: '#c4b5fd', borderTopColor: 'transparent' }}
+              />
+            </div>
+          )}
+          {!loadingMessages && messages.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-sm" style={{ color: '#AEAEB2' }}>
+                Say hello! Start the conversation.
+              </p>
+            </div>
+          )}
+          {messages.map((msg) => {
+            const isMine = msg.sender_address === w;
+            return (
+              <div
+                key={msg.id}
+                className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className="max-w-[75%] px-4 py-2.5 rounded-2xl"
+                  style={{
+                    background: isMine
+                      ? 'linear-gradient(135deg, #a78bfa, #c084fc)'
+                      : '#F2F2F7',
+                    borderBottomRightRadius: isMine ? '6px' : '18px',
+                    borderBottomLeftRadius: isMine ? '18px' : '6px',
+                  }}
+                >
+                  <p
+                    className="text-sm leading-relaxed"
+                    style={{ color: isMine ? 'white' : '#1C1C1E' }}
+                  >
+                    {msg.message}
+                  </p>
+                  <p
+                    className="text-[10px] mt-1"
+                    style={{
+                      color: isMine ? 'rgba(255,255,255,0.6)' : '#AEAEB2',
+                      textAlign: isMine ? 'right' : 'left',
+                    }}
+                  >
+                    {new Date(msg.sent_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Message input */}
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ borderTop: '1px solid #F2F2F7' }}
+        >
+          <input
+            ref={messageInputRef}
+            type="text"
+            placeholder="Type a message..."
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            className="flex-1 text-sm py-2.5 px-4 rounded-full outline-none"
+            style={{
+              background: '#F2F2F7',
+              color: '#1C1C1E',
+              border: 'none',
+            }}
+          />
+          <motion.button
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={sendMessage}
+            disabled={!newMessage.trim() || sending}
+            style={{
+              background: newMessage.trim() ? 'linear-gradient(135deg, #a78bfa, #c084fc)' : '#E5E5EA',
+            }}
+          >
+            {sending ? (
+              <Loader2 size={16} color="white" className="animate-spin" />
+            ) : (
+              <Send
+                size={16}
+                color={newMessage.trim() ? 'white' : '#AEAEB2'}
+                strokeWidth={2}
+              />
+            )}
+          </motion.button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Conversation list view ────────────────────────
+  if (conversations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 px-6">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{ background: '#F2F2F7' }}
+        >
+          <MessageCircle size={28} color="#AEAEB2" strokeWidth={1.5} />
+        </div>
+        <h3 className="text-lg font-semibold" style={{ color: '#1C1C1E' }}>
+          No Conversations
+        </h3>
+        <p className="text-sm text-center max-w-xs" style={{ color: '#6E6E73' }}>
+          When you and a match both accept, you can message each other here.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6">
-      <h2
-        className="text-xl font-bold mb-4"
-        style={{ color: '#1C1C1E' }}
-      >
-        Messages
-      </h2>
-      <p className="text-sm" style={{ color: '#6E6E73' }}>
-        Conversations with your approved matches.
-      </p>
+    <div className="flex flex-col h-full">
+      <div className="px-6 pt-4 pb-3">
+        <h2 className="text-xl font-bold" style={{ color: '#1C1C1E' }}>
+          Messages
+        </h2>
+        <p className="text-xs mt-1" style={{ color: '#6E6E73' }}>
+          Conversations with your mutual matches
+        </p>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {conversations.map((convo) => {
+          const otherAddr =
+            convo.user_a_address === w ? convo.user_b_address : convo.user_a_address;
+          const other = profiles.get(otherAddr);
+          const grad =
+            CARD_GRADIENTS[
+              Math.abs(otherAddr.charCodeAt(2) || 0) % CARD_GRADIENTS.length
+            ];
+
+          return (
+            <motion.button
+              key={convo.id}
+              className="w-full flex items-center gap-3 px-6 py-3.5 text-left"
+              style={{ borderBottom: '1px solid #F2F2F7' }}
+              whileHover={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => openConvo(convo.id)}
+            >
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: `linear-gradient(135deg, ${grad.from}, ${grad.to})`,
+                }}
+              >
+                <span className="text-white/80 text-sm font-semibold">
+                  {getInitials(other?.name || 'AN')}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3
+                  className="text-[15px] font-semibold"
+                  style={{ color: '#1C1C1E' }}
+                >
+                  {other?.name || 'Anonymous'}
+                </h3>
+                <p
+                  className="text-xs truncate mt-0.5"
+                  style={{ color: '#6E6E73' }}
+                >
+                  {convo.last_message_at
+                    ? `Last message ${new Date(convo.last_message_at).toLocaleDateString()}`
+                    : 'No messages yet — say hi!'}
+                </p>
+              </div>
+              <ArrowLeft
+                size={16}
+                color="#AEAEB2"
+                strokeWidth={2}
+                style={{ transform: 'rotate(180deg)' }}
+              />
+            </motion.button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -974,6 +1597,8 @@ export default function VotePage() {
     try {
       setLoading(true);
 
+      console.log('[VotePage] Connected wallet:', walletLower);
+
       // 1. Try loading voting proposals (exclude matches involving the user)
       const { data: allVoting, error: votingError } = await supabase
         .from('match_proposals')
@@ -983,15 +1608,33 @@ export default function VotePage() {
         .neq('user_b_address', walletLower)
         .limit(20);
 
-      console.log('[VotePage] Voting proposals:', allVoting?.length ?? 0, 'error:', votingError?.message ?? 'none');
+      console.log('[VotePage] Voting proposals (after DB filter):', allVoting?.length ?? 0, 'error:', votingError?.message ?? 'none');
 
       if (votingError || !allVoting || allVoting.length === 0) {
         useDemoPairs();
         return;
       }
 
+      // Safety: client-side double-check — remove any proposals where user is a participant
+      const safeVoting = allVoting.filter((p) => {
+        const isParticipant =
+          p.user_a_address.toLowerCase() === walletLower ||
+          p.user_b_address.toLowerCase() === walletLower;
+        if (isParticipant) {
+          console.warn('[VotePage] BLOCKED own proposal that leaked through DB filter:', p.id, p.user_a_address, p.user_b_address);
+        }
+        return !isParticipant;
+      });
+
+      console.log('[VotePage] After client-side safety filter:', safeVoting.length, '(removed', allVoting.length - safeVoting.length, ')');
+
+      if (safeVoting.length === 0) {
+        useDemoPairs();
+        return;
+      }
+
       // 2. Check which ones user already voted on
-      const proposalIds = allVoting.map((p) => p.id);
+      const proposalIds = safeVoting.map((p) => p.id);
       const { data: existingVotes } = await supabase
         .from('match_votes')
         .select('match_proposal_id')
@@ -1004,7 +1647,7 @@ export default function VotePage() {
 
       // 3. Fetch all related profiles
       const allAddresses = new Set<string>();
-      allVoting.forEach((p) => {
+      safeVoting.forEach((p) => {
         allAddresses.add(p.user_a_address);
         allAddresses.add(p.user_b_address);
       });
@@ -1030,7 +1673,7 @@ export default function VotePage() {
       const builtPairs: PairData[] = [];
       const initialPairVotes: Record<number, { approves: number; rejects: number }> = {};
 
-      for (const proposal of allVoting) {
+      for (const proposal of safeVoting) {
         // Skip proposals the user already voted on
         if (alreadyVotedIds.has(proposal.id)) continue;
 
@@ -1057,7 +1700,7 @@ export default function VotePage() {
         };
       }
 
-      console.log('[VotePage] Built', builtPairs.length, 'pairs from', allVoting.length, 'proposals');
+      console.log('[VotePage] Built', builtPairs.length, 'pairs from', safeVoting.length, 'proposals');
 
       // If no pairs could be built (missing profiles), use demo
       if (builtPairs.length === 0) {
@@ -1108,8 +1751,24 @@ export default function VotePage() {
         return;
       }
 
+      // Safety: client-side double-check — remove any proposals where user is a participant
+      const safeVoting = allVoting.filter((p) => {
+        const isParticipant =
+          p.user_a_address.toLowerCase() === walletLower ||
+          p.user_b_address.toLowerCase() === walletLower;
+        if (isParticipant) {
+          console.warn('[VotePage] loadMore BLOCKED own proposal:', p.id);
+        }
+        return !isParticipant;
+      });
+
+      if (safeVoting.length === 0) {
+        setLoadingMore(false);
+        return;
+      }
+
       // 3. Find which ones user already voted on
-      const proposalIds = allVoting.map((p) => p.id);
+      const proposalIds = safeVoting.map((p) => p.id);
       const { data: existingVotes } = await supabase
         .from('match_votes')
         .select('match_proposal_id')
@@ -1121,7 +1780,7 @@ export default function VotePage() {
       );
 
       // 4. Filter to only new, unvoted proposals not already in the feed
-      const newProposals = allVoting.filter(
+      const newProposals = safeVoting.filter(
         (p) => !alreadyVotedIds.has(p.id) && !loadedProposalIds.current.has(p.id)
       );
 
@@ -1763,9 +2422,9 @@ export default function VotePage() {
                 />
               </div>
               <div className="flex-1 overflow-hidden">
-                {activeTab === 'matches' && <MatchesView />}
+                {activeTab === 'matches' && <MatchesView walletAddress={address} />}
                 {activeTab === 'profile' && <ProfileTab walletAddress={address} />}
-                {activeTab === 'messages' && <DMTab />}
+                {activeTab === 'messages' && <DMTab walletAddress={address} />}
               </div>
             </motion.div>
           </>

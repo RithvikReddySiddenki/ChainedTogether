@@ -137,7 +137,7 @@ export default function Home() {
                   '0 0 60px rgba(0,255,213,0.3), 0 0 120px rgba(0,255,213,0.1)',
               }}
             >
-              CHAIN{' '}
+              CHAINED
               <span
                 style={{
                   background:
@@ -158,7 +158,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.9, delay: 0.7, ease: 'easeOut' }}
             >
-              Bridging People Through Shared Ownership
+              Love On-Chain
             </motion.p>
 
             {/* Decorative line */}

@@ -11,9 +11,10 @@
  * Also re-exports the legacy ZeroGComputeClient shim used by profile/intake.
  */
 
-// ─── Environment ──────────────────────────────────────────
-const OG_ENDPOINT =
-  process.env.NEXT_PUBLIC_0G_ENDPOINT || process.env.OG_ENDPOINT || '';
+// ─── Environment (read at call time, not module load time) ─
+function getEndpoint(): string {
+  return process.env.NEXT_PUBLIC_0G_ENDPOINT || process.env.OG_ENDPOINT || '';
+}
 
 // ─── Types ────────────────────────────────────────────────
 export interface InferJSONParams {
@@ -82,7 +83,7 @@ export async function inferJSON<T = any>(params: InferJSONParams): Promise<T> {
   const {
     systemPrompt,
     userPrompt,
-    model = 'qwen-2.5-7b-instruct',
+    model = 'qwen/qwen-2.5-7b-instruct',
     temperature = 0.2,
     maxTokens = 900,
   } = params;
@@ -132,7 +133,7 @@ export async function inferJSON<T = any>(params: InferJSONParams): Promise<T> {
 // ─── Low-level call (raw fetch only — no broker SDK) ──────
 
 async function callInference(body: Record<string, any>): Promise<string> {
-  const serviceUrl = OG_ENDPOINT;
+  const serviceUrl = getEndpoint();
 
   if (!serviceUrl) {
     throw new Error(

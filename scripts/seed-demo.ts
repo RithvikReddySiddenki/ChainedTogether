@@ -35,6 +35,7 @@ const HARDHAT_ACCOUNT_0 = '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266';
 interface DemoProfile {
   wallet_address: string;
   name: string;
+  bio: string;
   age: number;
   location: string;
   image_url: string;
@@ -52,6 +53,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
     name: 'Maya Chen',
+    bio: 'Software engineer who loves cooking elaborate meals on weekends. Avid reader of sci-fi novels and always planning my next travel adventure. Looking for someone ambitious and honest who enjoys deep conversations over homemade pasta.',
     age: 24,
     location: 'San Francisco, CA',
     image_url: 'https://i.pravatar.cc/300?img=5',
@@ -67,6 +69,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     name: 'Liam Park',
+    bio: 'Gym enthusiast and weekend trail runner who plays guitar in a local band. Work in tech but happiest outdoors. Family means everything to me and I want to build something lasting with the right person.',
     age: 27,
     location: 'Austin, TX',
     image_url: 'https://i.pravatar.cc/300?img=11',
@@ -82,6 +85,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     name: 'Ava Mitchell',
+    bio: 'Brooklyn-based artist who paints murals by day and plays vinyl records by night. Love wandering farmers markets, trying new recipes, and spontaneous weekend trips. Seeking a genuine, kind soul who appreciates creativity.',
     age: 22,
     location: 'Brooklyn, NY',
     image_url: 'https://i.pravatar.cc/300?img=9',
@@ -97,6 +101,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
     name: 'Noah Williams',
+    bio: 'Mountain climber and backcountry skier who reads philosophy on rest days. Work remotely so I can live near the trails. Loyal to my core, value honest communication, and dream of raising a family surrounded by nature.',
     age: 29,
     location: 'Denver, CO',
     image_url: 'https://i.pravatar.cc/300?img=12',
@@ -112,6 +117,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
     name: 'Sophia Reyes',
+    bio: 'Pilates instructor and amateur ceramicist who cooks Mexican family recipes. Passionate about empowering others and building community. Looking for someone kind and driven who loves to create things together.',
     age: 25,
     location: 'Los Angeles, CA',
     image_url: 'https://i.pravatar.cc/300?img=25',
@@ -127,6 +133,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x976ea74026e726554db657fa54763abd0c3a0aa9',
     name: 'Ethan Brooks',
+    bio: 'Backend developer and avid hiker who spends evenings reading about space exploration. Prefer quiet weekends in nature over crowded bars. Honest and ambitious, taking my time to find the right connection.',
     age: 26,
     location: 'Seattle, WA',
     image_url: 'https://i.pravatar.cc/300?img=14',
@@ -142,6 +149,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x14dc79964da2c08dda394f80782ef11c7d9283cd',
     name: 'Isabella Torres',
+    bio: 'Travel blogger who has visited 30 countries and collects recipes from every one. Play ukulele badly but enthusiastically. Family-oriented Miami native looking for a loyal partner who values culture and adventure.',
     age: 23,
     location: 'Miami, FL',
     image_url: 'https://i.pravatar.cc/300?img=32',
@@ -157,6 +165,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f',
     name: 'James Nakamura',
+    bio: 'Jazz pianist and home cook who builds mechanical keyboards as a hobby. Quiet creative who values deep one-on-one conversations over group hangs. Seeking someone honest and thoughtful for a genuine connection.',
     age: 28,
     location: 'Portland, OR',
     image_url: 'https://i.pravatar.cc/300?img=15',
@@ -172,6 +181,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720',
     name: 'Olivia Andersen',
+    bio: 'Pre-med student and marathon runner who journals every morning. Love camping trips, bookstores, and deep conversations about the future. Fiercely loyal and looking for someone equally ambitious and honest.',
     age: 21,
     location: 'Chicago, IL',
     image_url: 'https://i.pravatar.cc/300?img=44',
@@ -187,6 +197,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0xbcd4042de499d14e55001ccbb24a551f3b954096',
     name: 'Daniel Patel',
+    bio: 'Data scientist and CrossFit regular who devours non-fiction books. Passionate about building things that matter and staying healthy. Looking for a committed, honest partner who shares that drive.',
     age: 30,
     location: 'Boston, MA',
     image_url: 'https://i.pravatar.cc/300?img=53',
@@ -202,6 +213,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x71be63f3384f5fb98995898a86b02fb2426c5788',
     name: 'Chloe Kim',
+    bio: 'Singer-songwriter who teaches cooking classes on weekends. Love painting outdoors, farmers markets, and potluck dinners with friends. Family is everything, looking for someone kind who wants to build community together.',
     age: 24,
     location: 'Nashville, TN',
     image_url: 'https://i.pravatar.cc/300?img=47',
@@ -217,6 +229,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0xfabb0ac9d68b0b445fb7357272ff202c5651694a',
     name: 'Ryan Cooper',
+    bio: 'Rock climbing guide and amateur photographer who builds drones for fun. Love road trips to national parks and camping under the stars. Loyal and adventurous, taking my time to find someone who matches my energy.',
     age: 26,
     location: 'Phoenix, AZ',
     image_url: 'https://i.pravatar.cc/300?img=57',
@@ -232,6 +245,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x1cbd3b2770909d4e10f157cabc84c7264073c9ec',
     name: 'Emma Larsen',
+    bio: 'Children\'s book illustrator who bakes sourdough and plays folk guitar. Love quiet evenings reading, cozy coffee shops, and long walks. Honest and family-oriented, seeking a deep meaningful connection.',
     age: 22,
     location: 'Minneapolis, MN',
     image_url: 'https://i.pravatar.cc/300?img=38',
@@ -247,6 +261,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0xdf3e18d64bc6a983f673ab319ccae4f1a57c7097',
     name: 'Marcus Johnson',
+    bio: 'Music producer and gym rat who builds apps on the side. Love hiking with my dog, live concerts, and weekend basketball games. Loyal and driven, looking for someone equally committed to growth and honesty.',
     age: 27,
     location: 'Atlanta, GA',
     image_url: 'https://i.pravatar.cc/300?img=60',
@@ -333,6 +348,7 @@ async function main() {
     allProfiles.push({
       wallet_address: myWallet,
       name: 'You (Demo)',
+      bio: 'Blockchain enthusiast and builder who loves exploring new tech. Enjoy traveling, live music, and staying active. Looking for genuine connections with honest, loyal, ambitious people.',
       age: 25,
       location: 'Your City',
       image_url: 'https://i.pravatar.cc/300?img=68',
@@ -350,6 +366,7 @@ async function main() {
   const profileRows = allProfiles.map((p) => ({
     wallet_address: p.wallet_address.toLowerCase(),
     name: p.name,
+    bio: p.bio,
     age: p.age,
     location: p.location,
     image_url: p.image_url,
@@ -357,9 +374,20 @@ async function main() {
     embedding: generateEmbedding(p.answers_json),
   }));
 
-  const { error: profileError } = await supabase
+  // Try upsert with bio field first
+  let { error: profileError } = await supabase
     .from('profiles')
     .upsert(profileRows, { onConflict: 'wallet_address' });
+
+  // If bio column doesn't exist yet, retry without it
+  if (profileError && profileError.message?.includes('bio')) {
+    console.log('  Note: bio column not found, upserting without bio (run migration 003 to add it)');
+    const rowsNoBio = profileRows.map(({ bio, ...rest }) => rest);
+    const retry = await supabase
+      .from('profiles')
+      .upsert(rowsNoBio, { onConflict: 'wallet_address' });
+    profileError = retry.error;
+  }
 
   if (profileError) {
     console.error('Profile upsert error:', profileError);

@@ -21,15 +21,14 @@ function generatePairHash(userA: string, userB: string): string {
 async function getExistingPairHashes(): Promise<Set<string>> {
   const hashes = new Set<string>();
 
-  // From proposals
+  // Check ALL proposals (any status) — the pair_hash column has a UNIQUE constraint
   const { data: proposals } = await supabase
     .from('match_proposals')
-    .select('pair_hash')
-    .in('status', ['proposed', 'voting', 'approved']);
+    .select('pair_hash');
 
   proposals?.forEach(p => hashes.add(p.pair_hash));
 
-  // From queue
+  // Also check unconsumed queue entries
   const { data: queued } = await supabase
     .from('match_generation_queue')
     .select('pair_hash')

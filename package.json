@@ -13,7 +13,9 @@
     "test": "hardhat test",
     "node": "hardhat node",
     "jobs": "tsx scripts/run-jobs.ts",
-    "seed": "tsx scripts/seed-demo.ts"
+    "seed": "tsx scripts/seed-demo.ts",
+    "setup:0g": "tsx scripts/setup-0g-account.ts",
+    "list:0g": "tsx scripts/list-0g-services.ts"
   },
   "dependencies": {
     "@0glabs/0g-serving-broker": "^0.7.1",

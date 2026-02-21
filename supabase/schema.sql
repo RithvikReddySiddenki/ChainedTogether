@@ -9,6 +9,7 @@
 CREATE TABLE profiles (
   wallet_address TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  bio TEXT,                                  -- Free-text bio for AI matchmaking
   age INTEGER NOT NULL CHECK (age >= 18),
   location TEXT NOT NULL,
   image_url TEXT NOT NULL,

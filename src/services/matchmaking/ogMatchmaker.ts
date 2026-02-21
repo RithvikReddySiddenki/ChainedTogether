@@ -14,7 +14,7 @@
  * never stalls.
  */
 
-import { inferJSON } from '../0gComputeClient';
+import { inferJSON } from '../0gServerInference';
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -83,7 +83,7 @@ Score this pair.`;
     const result = await inferJSON<{ score: number; reasons: string[] }>({
       systemPrompt: SCORE_PAIR_SYSTEM,
       userPrompt,
-      model: 'qwen-2.5-7b-instruct',
+      model: 'qwen/qwen-2.5-7b-instruct',
       temperature: 0.2,
       maxTokens: 600,
     });
@@ -131,7 +131,7 @@ Rank the top ${Math.min(k, subset.length)} candidates for the target user.`;
     }>({
       systemPrompt: RANK_CANDIDATES_SYSTEM,
       userPrompt,
-      model: 'qwen-2.5-7b-instruct',
+      model: 'qwen/qwen-2.5-7b-instruct',
       temperature: 0.2,
       maxTokens: 900,
     });
@@ -151,6 +151,37 @@ Rank the top ${Math.min(k, subset.length)} candidates for the target user.`;
     console.warn('[ogMatchmaker] rankCandidatesForUser inference failed, using fallback:', err);
     return fallbackRankCandidates(user, candidates, k);
   }
+}
+
+// ─── Bio builder from structured answers ─────────────────
+
+/** Build a rich bio string from answers_json when no bio field is available. */
+function buildBioFromAnswers(name: string | undefined, answers: any): string {
+  if (!answers) return `${name || 'User'} is looking for meaningful connections.`;
+
+  const parts: string[] = [];
+
+  if (answers.interests?.length) {
+    parts.push(`Interested in ${answers.interests.join(', ')}`);
+  }
+  if (answers.values?.length) {
+    parts.push(`Values ${answers.values.join(', ')}`);
+  }
+  if (answers.lifestyle?.length) {
+    parts.push(`${answers.lifestyle.join(' and ')} lifestyle`);
+  }
+  if (answers.communicationStyle) {
+    parts.push(`prefers ${answers.communicationStyle} communication`);
+  }
+  if (answers.goals) {
+    parts.push(`looking for ${answers.goals}`);
+  }
+
+  if (parts.length === 0) {
+    return `${name || 'User'} is looking for meaningful connections.`;
+  }
+
+  return `${name || 'User'}: ${parts.join('. ')}.`;
 }
 
 // ─── Convenience: generateMatchPairs (drop-in for old API) ─
@@ -178,15 +209,11 @@ export async function generateMatchPairs(params: {
 > {
   const { allProfiles, pairsToGenerate = 10 } = params;
 
-  // Build ProfileBio for each profile, using bio text only
+  // Build ProfileBio for each profile, using bio text or synthesizing from answers_json
   const bios: ProfileBio[] = allProfiles.map((p) => ({
     wallet_address: p.wallet_address,
     name: p.name || 'Anonymous',
-    bio:
-      p.bio ||
-      p.answers_json?.bio ||
-      p.answers_json?.goals ||
-      `${p.name || 'User'} is looking for meaningful connections.`,
+    bio: p.bio || buildBioFromAnswers(p.name, p.answers_json),
   }));
 
   // Strategy: for each user, rank candidates and collect top pairs

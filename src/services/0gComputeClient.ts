@@ -169,9 +169,70 @@ async function callInference(body: Record<string, any>): Promise<string> {
 }
 
 // ═══════════════════════════════════════════════════════════
+// BIO SUMMARY GENERATOR
+// Takes structured onboarding answers and generates a 2-sentence bio
+// via 0G Compute AI. Falls back to template if inference unavailable.
+// ═══════════════════════════════════════════════════════════
+
+export interface OnboardingAnswers {
+  name: string;
+  age: number;
+  location: string;
+  job: string;
+  hobbies: string;
+  fun: string;
+}
+
+const BIO_SYSTEM_PROMPT = `You are a profile bio writer for a social matching platform.
+Given a person's basic information, write a short, warm, engaging bio in exactly 2-3 sentences.
+Write in first person as if the person wrote it themselves.
+Be natural and personable — avoid sounding like a resume.
+Return ONLY valid JSON: { "bio": "<the bio text>" }`;
+
+/**
+ * Generate a 2-3 sentence bio summary from onboarding answers.
+ * Calls 0G Compute AI, falls back to a template on failure.
+ */
+export async function generateBioSummary(answers: OnboardingAnswers): Promise<string> {
+  const userPrompt = `Name: ${answers.name}
+Age: ${answers.age}
+Location: ${answers.location}
+Job/Studies: ${answers.job}
+Hobbies: ${answers.hobbies}
+What they like to do for fun: ${answers.fun}
+
+Write a 2-3 sentence bio for this person.`;
+
+  try {
+    const result = await inferJSON<{ bio: string }>({
+      systemPrompt: BIO_SYSTEM_PROMPT,
+      userPrompt,
+      temperature: 0.7,
+      maxTokens: 300,
+    });
+
+    if (result.bio && typeof result.bio === 'string' && result.bio.length > 10) {
+      return result.bio;
+    }
+    throw new Error('Invalid bio response');
+  } catch (err) {
+    console.warn('[generateBioSummary] AI generation failed, using template:', err);
+    return buildTemplateBio(answers);
+  }
+}
+
+function buildTemplateBio(a: OnboardingAnswers): string {
+  const jobPart = a.job ? `${a.job} based in ${a.location}` : `Based in ${a.location}`;
+  const hobbyPart = a.hobbies ? `Into ${a.hobbies.toLowerCase()}` : '';
+  const funPart = a.fun ? `Loves ${a.fun.toLowerCase()}` : '';
+
+  const parts = [jobPart, hobbyPart, funPart].filter(Boolean);
+  return parts.join('. ') + '.';
+}
+
+// ═══════════════════════════════════════════════════════════
 // LEGACY SHIM — ZeroGComputeClient
-// Used by profile/page.tsx and IntakeChat.tsx
-// Preserves the old mock intake questionnaire flow
+// Used by IntakeChat.tsx (kept for backward compatibility)
 // ═══════════════════════════════════════════════════════════
 
 const QUESTION_BANK = [

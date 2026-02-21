@@ -15,7 +15,6 @@ import {
 import {
   ThumbsUp,
   ThumbsDown,
-  Heart,
   MessageSquare,
   Send,
   X,
@@ -149,8 +148,8 @@ function profileToCardData(
     name: profile.name || 'Anonymous',
     age: profile.age || 0,
     bio:
+      profile.bio ||
       profile.answers_json?.goals ||
-      profile.answers_json?.bio ||
       'Looking for meaningful connections in Web3.',
     tags,
     initials: getInitials(profile.name || 'AN'),
@@ -238,8 +237,6 @@ function VotingControls({
   onVoteYes: () => void;
   onVoteNo: () => void;
 }) {
-  const [liked, setLiked] = useState(false);
-
   return (
     <div className="flex flex-col items-center gap-5">
       {/* Reject */}
@@ -291,39 +288,6 @@ function VotingControls({
           }}
         >
           <ThumbsUp size={22} color="#34d399" strokeWidth={2} />
-        </div>
-      </motion.button>
-
-      {/* Like */}
-      <motion.button
-        className="relative group flex items-center justify-center"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.92 }}
-        transition={{ duration: 0.2, ease: [0.33, 1, 0.68, 1] }}
-        onClick={() => setLiked(!liked)}
-        aria-label={liked ? 'Unlike' : 'Like this pair'}
-      >
-        <div
-          className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-30 blur-md transition-opacity duration-200"
-          style={{ background: '#f472b6' }}
-        />
-        <div
-          className="w-14 h-14 rounded-full flex items-center justify-center transition-colors duration-200"
-          style={{
-            background: liked
-              ? 'rgba(244, 114, 182, 0.2)'
-              : 'rgba(255, 255, 255, 0.55)',
-            backdropFilter: 'blur(16px)',
-            border: `1px solid ${liked ? 'rgba(244, 114, 182, 0.4)' : 'rgba(255, 255, 255, 0.45)'}`,
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-          }}
-        >
-          <Heart
-            size={22}
-            color="#f472b6"
-            strokeWidth={2}
-            fill={liked ? '#f472b6' : 'none'}
-          />
         </div>
       </motion.button>
 

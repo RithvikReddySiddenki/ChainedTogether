@@ -3,6 +3,7 @@
 export interface Profile {
   wallet_address: string;
   name: string;
+  bio?: string;
   age: number;
   location: string;
   image_url: string;
@@ -19,6 +20,10 @@ export interface ExtractedProfile {
   dealbreakers: string[];
   lifestyle: string[];
   goals: string;
+  /** New onboarding fields */
+  job?: string;
+  hobbies?: string;
+  fun?: string;
 }
 
 export interface IntakeSession {

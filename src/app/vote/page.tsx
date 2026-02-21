@@ -835,7 +835,7 @@ function ProfileTab({ walletAddress }: { walletAddress?: string }) {
   return (
     <div className="flex flex-col items-center px-6 pt-6 pb-24 overflow-y-auto h-full">
       <div
-        className="w-full max-w-sm rounded-3xl overflow-hidden"
+        className="w-full rounded-3xl overflow-hidden"
         style={{
           background: 'white',
           boxShadow: '0 12px 40px rgba(0, 0, 0, 0.08)',
@@ -851,7 +851,7 @@ function ProfileTab({ walletAddress }: { walletAddress?: string }) {
             {initials}
           </span>
         </div>
-        <div className="px-6 pt-5 pb-6">
+        <div className="px-6 pt-5 pb-6 text-center">
           <h3 className="text-xl font-bold" style={{ color: '#1C1C1E' }}>
             {profile.name}, {profile.age}
           </h3>
@@ -865,7 +865,7 @@ function ProfileTab({ walletAddress }: { walletAddress?: string }) {
             {userBio}
           </p>
           {tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-4">
+            <div className="flex flex-wrap justify-center gap-2 mt-4">
               {tags.map((tag: string) => (
                 <span
                   key={tag}
@@ -925,10 +925,15 @@ function DMTab() {
 export default function VotePage() {
   const { address, isConnected } = useAccount();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isAutoScrolling = useRef(false);
+  const isFetchingMore = useRef(false);
 
   // ─── Data state ───────────────────────────────────────
   const [pairs, setPairs] = useState<PairData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Track proposal IDs already in the feed to avoid duplicates
+  const loadedProposalIds = useRef<Set<number>>(new Set());
 
   // ─── UI state (from spec) ─────────────────────────────
   const [activeIndex, setActiveIndex] = useState(0);
@@ -969,11 +974,13 @@ export default function VotePage() {
     try {
       setLoading(true);
 
-      // 1. Try loading voting proposals directly
+      // 1. Try loading voting proposals (exclude matches involving the user)
       const { data: allVoting, error: votingError } = await supabase
         .from('match_proposals')
         .select('*')
         .eq('status', 'voting')
+        .neq('user_a_address', walletLower)
+        .neq('user_b_address', walletLower)
         .limit(20);
 
       console.log('[VotePage] Voting proposals:', allVoting?.length ?? 0, 'error:', votingError?.message ?? 'none');
@@ -1022,9 +1029,11 @@ export default function VotePage() {
       // 4. Build PairData array
       const builtPairs: PairData[] = [];
       const initialPairVotes: Record<number, { approves: number; rejects: number }> = {};
-      const initialVotedSet = new Set<number>();
 
       for (const proposal of allVoting) {
+        // Skip proposals the user already voted on
+        if (alreadyVotedIds.has(proposal.id)) continue;
+
         const profileA = profileMap.get(proposal.user_a_address.toLowerCase());
         const profileB = profileMap.get(proposal.user_b_address.toLowerCase());
         if (!profileA || !profileB) continue;
@@ -1046,10 +1055,6 @@ export default function VotePage() {
           approves: proposal.yes_votes || 0,
           rejects: proposal.no_votes || 0,
         };
-
-        if (alreadyVotedIds.has(proposal.id)) {
-          initialVotedSet.add(pairIndex);
-        }
       }
 
       console.log('[VotePage] Built', builtPairs.length, 'pairs from', allVoting.length, 'proposals');
@@ -1060,9 +1065,12 @@ export default function VotePage() {
         return;
       }
 
+      // Track loaded IDs for dedup when appending more later
+      builtPairs.forEach((p) => loadedProposalIds.current.add(p.proposalId));
+
       setPairs(builtPairs);
       setPairVotes(initialPairVotes);
-      setVotedPairs(initialVotedSet);
+      setVotedPairs(new Set());
 
       const g = builtPairs[0].gradient;
       setBgGradient(`linear-gradient(135deg, ${g[0]}, ${g[1]}, ${g[2]})`);
@@ -1074,6 +1082,144 @@ export default function VotePage() {
       setLoading(false);
     }
   }
+
+  // ─── Load more pairs (infinite feed) ───────────────
+  async function loadMorePairs() {
+    if (!address || isFetchingMore.current) return;
+    isFetchingMore.current = true;
+    setLoadingMore(true);
+    const walletLower = address.toLowerCase();
+
+    try {
+      // 1. Ask server to generate more proposals via 0G AI
+      await fetch('/api/generate-matches', { method: 'POST' });
+
+      // 2. Fetch voting proposals (exclude matches involving the user)
+      const { data: allVoting } = await supabase
+        .from('match_proposals')
+        .select('*')
+        .eq('status', 'voting')
+        .neq('user_a_address', walletLower)
+        .neq('user_b_address', walletLower)
+        .limit(20);
+
+      if (!allVoting || allVoting.length === 0) {
+        setLoadingMore(false);
+        return;
+      }
+
+      // 3. Find which ones user already voted on
+      const proposalIds = allVoting.map((p) => p.id);
+      const { data: existingVotes } = await supabase
+        .from('match_votes')
+        .select('match_proposal_id')
+        .eq('voter_address', walletLower)
+        .in('match_proposal_id', proposalIds);
+
+      const alreadyVotedIds = new Set(
+        (existingVotes || []).map((v) => v.match_proposal_id)
+      );
+
+      // 4. Filter to only new, unvoted proposals not already in the feed
+      const newProposals = allVoting.filter(
+        (p) => !alreadyVotedIds.has(p.id) && !loadedProposalIds.current.has(p.id)
+      );
+
+      if (newProposals.length === 0) {
+        setLoadingMore(false);
+        return;
+      }
+
+      // 5. Fetch profiles for new proposals
+      const newAddresses = new Set<string>();
+      newProposals.forEach((p) => {
+        newAddresses.add(p.user_a_address);
+        newAddresses.add(p.user_b_address);
+      });
+
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('wallet_address', Array.from(newAddresses));
+
+      if (!profiles || profiles.length === 0) {
+        setLoadingMore(false);
+        return;
+      }
+
+      const profileMap = new Map<string, any>();
+      profiles.forEach((p) => profileMap.set(p.wallet_address.toLowerCase(), p));
+
+      // 6. Build new PairData — replace the entire feed with fresh pairs
+      const newPairs: PairData[] = [];
+      const newVotes: Record<number, { approves: number; rejects: number }> = {};
+
+      for (const proposal of newProposals) {
+        const profileA = profileMap.get(proposal.user_a_address.toLowerCase());
+        const profileB = profileMap.get(proposal.user_b_address.toLowerCase());
+        if (!profileA || !profileB) continue;
+
+        const pairIndex = newPairs.length;
+        const gradientSet = GRADIENT_SETS[pairIndex % GRADIENT_SETS.length];
+
+        newPairs.push({
+          proposalId: proposal.id,
+          matchId: proposal.on_chain_proposal_id || proposal.id,
+          gradient: gradientSet,
+          profiles: [
+            profileToCardData(profileA, pairIndex * 2),
+            profileToCardData(profileB, pairIndex * 2 + 1),
+          ],
+        });
+
+        newVotes[pairIndex] = {
+          approves: proposal.yes_votes || 0,
+          rejects: proposal.no_votes || 0,
+        };
+
+        loadedProposalIds.current.add(proposal.id);
+      }
+
+      if (newPairs.length > 0) {
+        console.log(`[VotePage] Replacing feed with ${newPairs.length} fresh pairs`);
+        // Reset scroll to top, then replace feed
+        const el = scrollRef.current;
+        if (el) el.scrollTop = 0;
+        setActiveIndex(0);
+        setPairs(newPairs);
+        setPairVotes(newVotes);
+        setVotedPairs(new Set());
+
+        // Update background gradient
+        const g = newPairs[0].gradient;
+        setBgGradient(`linear-gradient(135deg, ${g[0]}, ${g[1]}, ${g[2]})`);
+      }
+    } catch (err) {
+      console.error('[VotePage] loadMorePairs error:', err);
+    } finally {
+      isFetchingMore.current = false;
+      setLoadingMore(false);
+    }
+  }
+
+  // ─── Block scrolling past unvoted pair ───────────────
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const handleWheel = (e: WheelEvent) => {
+      // Always block — only auto-scroll advances the feed
+      e.preventDefault();
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+    };
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [activeIndex, votedPairs]);
 
   // ─── Scroll tracking ─────────────────────────────────
   useEffect(() => {
@@ -1104,31 +1250,20 @@ export default function VotePage() {
     }
   }, [activeIndex, pairs]);
 
-  // ─── Keyboard navigation ──────────────────────────────
+  // ─── Keyboard navigation (blocked forward if unvoted) ─
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const container = scrollRef.current;
       if (!container) return;
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' ||
+          e.key === 'ArrowUp' || e.key === 'PageUp') {
         e.preventDefault();
-        container.scrollTo({
-          top:
-            Math.min(activeIndex + 1, pairs.length - 1) *
-            container.clientHeight,
-          behavior: 'smooth',
-        });
-      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        e.preventDefault();
-        container.scrollTo({
-          top:
-            Math.max(activeIndex - 1, 0) * container.clientHeight,
-          behavior: 'smooth',
-        });
+        // All scroll navigation disabled — auto-scroll handles advancement
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeIndex, pairs.length]);
+  }, [activeIndex, pairs.length, votedPairs]);
 
   // ─── Vote handlers ────────────────────────────────────
   const handleVoteYes = useCallback(
@@ -1144,6 +1279,34 @@ export default function VotePage() {
         },
       }));
       setVotedPairs((prev) => new Set(prev).add(pairIndex));
+
+      // If this is the last pair, trigger loading more immediately
+      if (pairIndex >= pairs.length - 1) {
+        loadMorePairs();
+      } else {
+        // Prefetch more pairs when within 2 of the end
+        if (pairIndex >= pairs.length - 2) {
+          loadMorePairs();
+        }
+
+        // Auto-scroll to next pair after a brief delay
+        setTimeout(() => {
+          const el = scrollRef.current;
+          if (!el) return;
+          isAutoScrolling.current = true;
+          el.style.overflow = 'auto';
+          el.style.scrollbarWidth = 'none';   // Firefox
+          el.scrollTo({
+            top: (pairIndex + 1) * el.clientHeight,
+            behavior: 'smooth',
+          });
+          // Re-lock after scroll animation completes
+          setTimeout(() => {
+            el.style.overflow = 'hidden';
+            isAutoScrolling.current = false;
+          }, 600);
+        }, 800);
+      }
 
       // Persist to Supabase
       const pair = pairs[pairIndex];
@@ -1204,6 +1367,34 @@ export default function VotePage() {
         },
       }));
       setVotedPairs((prev) => new Set(prev).add(pairIndex));
+
+      // If this is the last pair, trigger loading more immediately
+      if (pairIndex >= pairs.length - 1) {
+        loadMorePairs();
+      } else {
+        // Prefetch more pairs when within 2 of the end
+        if (pairIndex >= pairs.length - 2) {
+          loadMorePairs();
+        }
+
+        // Auto-scroll to next pair after a brief delay
+        setTimeout(() => {
+          const el = scrollRef.current;
+          if (!el) return;
+          isAutoScrolling.current = true;
+          el.style.overflow = 'auto';
+          el.style.scrollbarWidth = 'none';   // Firefox
+          el.scrollTo({
+            top: (pairIndex + 1) * el.clientHeight,
+            behavior: 'smooth',
+          });
+          // Re-lock after scroll animation completes
+          setTimeout(() => {
+            el.style.overflow = 'hidden';
+            isAutoScrolling.current = false;
+          }, 600);
+        }, 800);
+      }
 
       // Persist to Supabase
       const pair = pairs[pairIndex];
@@ -1445,24 +1636,21 @@ export default function VotePage() {
                   : 'none',
             }}
             onClick={() => {
-              scrollRef.current?.scrollTo({
-                top: i * (scrollRef.current?.clientHeight || 0),
-                behavior: 'smooth',
-              });
+              // Dot indicators are visual only — auto-scroll handles navigation
             }}
             aria-label={`Go to pair ${i + 1}`}
           />
         ))}
       </div>
 
-      {/* Scrollable sections */}
+      {/* Scrollable sections — overflow hidden to prevent manual scroll;
+           auto-scroll temporarily enables overflow for programmatic scrollTo */}
       <div
         ref={scrollRef}
-        className="relative z-10 w-full h-full overflow-y-auto"
+        className="relative z-10 w-full h-full"
         style={{
+          overflow: 'hidden',
           scrollSnapType: 'y mandatory',
-          scrollBehavior: 'smooth',
-          WebkitOverflowScrolling: 'touch',
         }}
         role="feed"
         aria-label="Profile pairs discovery feed"
@@ -1481,6 +1669,60 @@ export default function VotePage() {
           />
         ))}
       </div>
+
+      {/* Loading overlay — shown when fetching more matches */}
+      <AnimatePresence>
+        {loadingMore && (
+          <motion.div
+            className="absolute inset-0 z-25 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{
+              background: 'rgba(0, 0, 0, 0.45)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 25,
+            }}
+          >
+            <motion.div
+              className="flex flex-col items-center gap-4 px-10 py-8"
+              style={{
+                borderRadius: '24px',
+                background: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(30px)',
+                WebkitBackdropFilter: 'blur(30px)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+              }}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div
+                className="w-10 h-10 border-[3px] border-t-transparent rounded-full animate-spin"
+                style={{
+                  borderColor: 'rgba(255,255,255,0.6)',
+                  borderTopColor: 'transparent',
+                }}
+              />
+              <p
+                className="text-base font-semibold tracking-wide"
+                style={{ color: 'rgba(255,255,255,0.9)' }}
+              >
+                Finding new matches...
+              </p>
+              <p
+                className="text-sm"
+                style={{ color: 'rgba(255,255,255,0.5)' }}
+              >
+                AI is generating fresh pairs for you
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tab overlay panels */}
       <AnimatePresence>

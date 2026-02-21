@@ -6,7 +6,7 @@ import {
   useRef,
   useCallback,
 } from 'react';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useAccount, useWalletClient } from 'wagmi';
 import {
   motion,
   AnimatePresence,
@@ -26,7 +26,7 @@ import {
 import { WalletConnect } from '@/components/WalletConnect';
 import ConsensusBanner from '@/components/ConsensusBanner';
 import { supabase } from '@/lib/supabase';
-import { CONTRACT_ADDRESSES, MATCH_REGISTRY_ABI } from '@/lib/contracts';
+import { castVote as snapshotCastVote } from '@/services/dao/snapshotClient';
 
 // ─── Types ──────────────────────────────────────────────
 interface ProfileData {
@@ -42,6 +42,7 @@ interface ProfileData {
 interface PairData {
   proposalId: number;
   matchId: number;
+  snapshotProposalId?: string;  // Snapshot off-chain proposal ID (if available)
   gradient: [string, string, string];
   profiles: [ProfileData, ProfileData];
 }
@@ -854,7 +855,7 @@ export default function VotePage() {
   );
   const prefersReducedMotion = useReducedMotion();
 
-  const { writeContract } = useWriteContract();
+  const { data: walletClient } = useWalletClient();
 
   // ─── Load pairs from Supabase ─────────────────────────
   useEffect(() => {
@@ -1081,22 +1082,24 @@ export default function VotePage() {
             .eq('id', pair.proposalId);
         }
 
-        // Try on-chain vote (non-blocking)
-        try {
-          writeContract({
-            address: CONTRACT_ADDRESSES.matchRegistry,
-            abi: MATCH_REGISTRY_ABI,
-            functionName: 'vote',
-            args: [BigInt(pair.matchId), true],
-          });
-        } catch (e) {
-          console.warn('On-chain vote failed (continuing):', e);
+        // Gasless Snapshot vote (non-blocking)
+        if (pair.snapshotProposalId && walletClient) {
+          try {
+            await snapshotCastVote({
+              web3: walletClient,
+              account: address,
+              proposalId: pair.snapshotProposalId,
+              choice: 1, // 1 = Approve
+            });
+          } catch (e) {
+            console.warn('Snapshot vote failed (continuing):', e);
+          }
         }
       } catch (error) {
         console.error('Failed to record vote:', error);
       }
     },
-    [address, pairs, votedPairs, writeContract]
+    [address, pairs, votedPairs, walletClient]
   );
 
   const handleVoteNo = useCallback(
@@ -1139,22 +1142,24 @@ export default function VotePage() {
             .eq('id', pair.proposalId);
         }
 
-        // Try on-chain vote (non-blocking)
-        try {
-          writeContract({
-            address: CONTRACT_ADDRESSES.matchRegistry,
-            abi: MATCH_REGISTRY_ABI,
-            functionName: 'vote',
-            args: [BigInt(pair.matchId), false],
-          });
-        } catch (e) {
-          console.warn('On-chain vote failed (continuing):', e);
+        // Gasless Snapshot vote (non-blocking)
+        if (pair.snapshotProposalId && walletClient) {
+          try {
+            await snapshotCastVote({
+              web3: walletClient,
+              account: address,
+              proposalId: pair.snapshotProposalId,
+              choice: 2, // 2 = Reject
+            });
+          } catch (e) {
+            console.warn('Snapshot vote failed (continuing):', e);
+          }
         }
       } catch (error) {
         console.error('Failed to record vote:', error);
       }
     },
-    [address, pairs, votedPairs, writeContract]
+    [address, pairs, votedPairs, walletClient]
   );
 
   // ─── Not connected ───────────────────────────────────

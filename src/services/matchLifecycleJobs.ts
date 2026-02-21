@@ -6,7 +6,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { zeroGClient } from './0gComputeClient';
+import { generateMatchPairs } from './matchmaking/ogMatchmaker';
 import { keccak256, encodePacked } from 'viem';
 
 // =====================================================
@@ -111,8 +111,8 @@ export async function matchGeneratorJob() {
       const existingPairs = await getExistingPairHashes();
       console.log(`[MatchGenerator] Existing pairs: ${existingPairs.size}`);
 
-      // Generate new pairs
-      const newPairs = await zeroGClient.generateMatchPairs({
+      // Generate new pairs via 0G Compute AI matchmaker
+      const newPairs = await generateMatchPairs({
         allProfiles: profiles,
         pairsToGenerate: needed * 2, // Generate more, filter duplicates
       });

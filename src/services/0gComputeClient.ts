@@ -1,15 +1,28 @@
 /**
- * 0g Labs Compute Client - AI Service Abstraction
+ * 0G Compute — thin inference client
  *
- * This module abstracts all AI operations for the matchmaking system.
+ * Exposes:
+ *   inferJSON({ systemPrompt, userPrompt, model, temperature, maxTokens })
  *
- * DEMO MODE: Uses deterministic MOCK implementation
- * PRODUCTION: Replace with actual 0g compute endpoint calls
+ * Uses raw fetch to call 0G Compute inference endpoint (OpenAI-compatible).
+ * Broker-based auth (SDK with Node.js deps) is handled separately in
+ * server-only code — this file is safe for both client and server bundles.
+ *
+ * Also re-exports the legacy ZeroGComputeClient shim used by profile/intake.
  */
 
-// =====================
-// TYPES
-// =====================
+// ─── Environment ──────────────────────────────────────────
+const OG_ENDPOINT =
+  process.env.NEXT_PUBLIC_0G_ENDPOINT || process.env.OG_ENDPOINT || '';
+
+// ─── Types ────────────────────────────────────────────────
+export interface InferJSONParams {
+  systemPrompt: string;
+  userPrompt: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
 
 export interface IntakeMessage {
   role: 'agent' | 'user';
@@ -37,23 +50,129 @@ export interface IntakeNextResponse {
   summary?: string[];
 }
 
-export interface MatchCandidate {
-  wallet: string;
-  embedding: number[];
+// ─── Helpers ──────────────────────────────────────────────
+
+/** Try to parse the *first* JSON object / array in the raw model output. */
+function extractJSON(raw: string): any {
+  const stripped = raw.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '');
+  const start = stripped.search(/[{\[]/);
+  if (start === -1) throw new Error('No JSON found in model output');
+
+  const openChar = stripped[start];
+  const closeChar = openChar === '{' ? '}' : ']';
+  let depth = 0;
+  for (let i = start; i < stripped.length; i++) {
+    if (stripped[i] === openChar) depth++;
+    else if (stripped[i] === closeChar) depth--;
+    if (depth === 0) {
+      return JSON.parse(stripped.slice(start, i + 1));
+    }
+  }
+  throw new Error('Unbalanced JSON in model output');
 }
 
-export interface RankedMatch {
-  wallet: string;
-  score: number;
-}
-
-// =====================
-// MOCK IMPLEMENTATION
-// =====================
+// ─── Core inference function ──────────────────────────────
 
 /**
- * Fixed question bank for deterministic demo
+ * Call 0G Compute inference and return parsed JSON.
+ * Uses raw fetch — no Node.js-only broker SDK dependencies.
+ * Retries once on JSON-parse failure.
  */
+export async function inferJSON<T = any>(params: InferJSONParams): Promise<T> {
+  const {
+    systemPrompt,
+    userPrompt,
+    model = 'qwen-2.5-7b-instruct',
+    temperature = 0.2,
+    maxTokens = 900,
+  } = params;
+
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: userPrompt },
+  ];
+
+  const body = {
+    model,
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+  };
+
+  let rawContent: string;
+
+  try {
+    rawContent = await callInference(body);
+  } catch (networkErr) {
+    console.error('[0gCompute] inference call failed:', networkErr);
+    throw networkErr;
+  }
+
+  // Attempt 1: parse JSON from the response
+  try {
+    return extractJSON(rawContent) as T;
+  } catch {
+    console.warn('[0gCompute] JSON parse failed, retrying with correction prompt...');
+    const retryMessages = [
+      ...messages,
+      { role: 'assistant' as const, content: rawContent },
+      {
+        role: 'user' as const,
+        content:
+          'Your previous reply was not valid JSON. Please return ONLY a valid JSON object matching the requested schema, with no markdown fences or extra text.',
+      },
+    ];
+
+    const retryBody = { ...body, messages: retryMessages };
+    const retryContent = await callInference(retryBody);
+    return extractJSON(retryContent) as T;
+  }
+}
+
+// ─── Low-level call (raw fetch only — no broker SDK) ──────
+
+async function callInference(body: Record<string, any>): Promise<string> {
+  const serviceUrl = OG_ENDPOINT;
+
+  if (!serviceUrl) {
+    throw new Error(
+      '[0gCompute] No service URL configured. Set NEXT_PUBLIC_0G_ENDPOINT or OG_ENDPOINT.'
+    );
+  }
+
+  const url = serviceUrl.replace(/\/+$/, '') + '/v1/proxy/chat/completions';
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`[0gCompute] HTTP ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('[0gCompute] Empty response from model');
+  }
+
+  return content;
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEGACY SHIM — ZeroGComputeClient
+// Used by profile/page.tsx and IntakeChat.tsx
+// Preserves the old mock intake questionnaire flow
+// ═══════════════════════════════════════════════════════════
+
 const QUESTION_BANK = [
   "What are your main hobbies or interests?",
   "How would you describe your communication style?",
@@ -67,57 +186,15 @@ const QUESTION_BANK = [
   "How do you handle conflicts or disagreements?",
 ];
 
-/**
- * Simple branching logic for adaptive questions
- */
-function shouldAskBranchQuestion(history: IntakeMessage[]): { ask: boolean; question: string } | null {
-  const userMessages = history.filter(m => m.role === 'user').map(m => m.content.toLowerCase());
-  const lastMessage = userMessages[userMessages.length - 1] || '';
-
-  // Fitness branch
-  if ((lastMessage.includes('fitness') || lastMessage.includes('gym') || lastMessage.includes('sports')) &&
-      !userMessages.some(m => m.includes('workout') || m.includes('exercise'))) {
-    return {
-      ask: true,
-      question: "That's interesting! How often do you work out or stay active?"
-    };
-  }
-
-  // Introvert branch
-  if ((lastMessage.includes('introvert') || lastMessage.includes('quiet') || lastMessage.includes('alone')) &&
-      !userMessages.some(m => m.includes('date') || m.includes('setting'))) {
-    return {
-      ask: true,
-      question: "I understand. What kind of date setting would make you most comfortable?"
-    };
-  }
-
-  // Travel branch
-  if (lastMessage.includes('travel') &&
-      !userMessages.some(m => m.includes('frequency') || m.includes('often'))) {
-    return {
-      ask: true,
-      question: "How often do you like to travel, and what's your travel style?"
-    };
-  }
-
-  return null;
-}
-
-/**
- * Extract structured profile from conversation history
- */
 function extractProfileFromHistory(history: IntakeMessage[]): ExtractedProfile {
   const userMessages = history.filter(m => m.role === 'user').map(m => m.content.toLowerCase());
   const allText = userMessages.join(' ');
 
-  // Simple keyword extraction
   const interests: string[] = [];
   const values: string[] = [];
   const dealbreakers: string[] = [];
   const lifestyle: string[] = [];
 
-  // Interests detection
   if (allText.includes('read')) interests.push('reading');
   if (allText.includes('gym') || allText.includes('fitness')) interests.push('fitness');
   if (allText.includes('cook')) interests.push('cooking');
@@ -127,39 +204,26 @@ function extractProfileFromHistory(history: IntakeMessage[]): ExtractedProfile {
   if (allText.includes('tech') || allText.includes('code')) interests.push('technology');
   if (allText.includes('outdoor') || allText.includes('hike')) interests.push('outdoors');
 
-  // Values detection
   if (allText.includes('honest') || allText.includes('truth')) values.push('honesty');
   if (allText.includes('loyal')) values.push('loyalty');
   if (allText.includes('family')) values.push('family');
   if (allText.includes('ambition') || allText.includes('career')) values.push('ambition');
   if (allText.includes('kind') || allText.includes('compassion')) values.push('kindness');
 
-  // Dealbreakers detection
   if (allText.includes('smoke') || allText.includes('smoking')) dealbreakers.push('smoking');
   if (allText.includes('dishonest') || allText.includes('lie')) dealbreakers.push('dishonesty');
-  if (allText.includes('no kids') || allText.includes('child-free')) dealbreakers.push('wants children');
 
-  // Lifestyle detection
   if (allText.includes('active') || allText.includes('exercise')) lifestyle.push('active');
   if (allText.includes('introvert') || allText.includes('quiet')) lifestyle.push('introverted');
   if (allText.includes('social') || allText.includes('outgoing')) lifestyle.push('social');
-  if (allText.includes('work-life balance')) lifestyle.push('balanced');
 
-  // Communication style
   let communicationStyle = 'balanced';
-  if (allText.includes('direct') || allText.includes('straightforward')) {
-    communicationStyle = 'direct';
-  } else if (allText.includes('gentle') || allText.includes('diplomatic')) {
-    communicationStyle = 'diplomatic';
-  }
+  if (allText.includes('direct') || allText.includes('straightforward')) communicationStyle = 'direct';
+  else if (allText.includes('gentle') || allText.includes('diplomatic')) communicationStyle = 'diplomatic';
 
-  // Goals
   let goals = 'seeking meaningful connection';
-  if (allText.includes('marriage') || allText.includes('long-term')) {
-    goals = 'long-term commitment';
-  } else if (allText.includes('casual') || allText.includes('take it slow')) {
-    goals = 'taking things slow';
-  }
+  if (allText.includes('marriage') || allText.includes('long-term')) goals = 'long-term commitment';
+  else if (allText.includes('casual') || allText.includes('take it slow')) goals = 'taking things slow';
 
   return {
     interests: interests.length > 0 ? interests : ['general conversation'],
@@ -171,9 +235,6 @@ function extractProfileFromHistory(history: IntakeMessage[]): ExtractedProfile {
   };
 }
 
-/**
- * Generate summary bullets from extracted profile
- */
 function generateSummary(profile: ExtractedProfile): string[] {
   return [
     `Interests: ${profile.interests.join(', ')}`,
@@ -185,363 +246,74 @@ function generateSummary(profile: ExtractedProfile): string[] {
   ];
 }
 
-/**
- * Simple embedding generation (deterministic for demo)
- */
-function generateEmbedding(profile: ExtractedProfile, imageUrl: string): number[] {
-  // In production, this would call 0g compute to generate real embeddings
-  // For demo: create deterministic 128-dim vector based on profile features
+function generateEmbedding(profile: ExtractedProfile): number[] {
   const embedding = new Array(128).fill(0);
+  const simpleHash = (str: string): number => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash = hash & hash;
+    }
+    return Math.abs(hash);
+  };
 
-  // Hash interests into embedding dimensions
-  profile.interests.forEach((interest, idx) => {
-    const hash = simpleHash(interest);
-    embedding[hash % 128] += 0.5;
+  profile.interests.forEach((interest) => {
+    embedding[simpleHash(interest) % 128] += 0.5;
+  });
+  profile.values.forEach((value) => {
+    embedding[(simpleHash(value) + 20) % 128] += 0.4;
+  });
+  profile.lifestyle.forEach((item) => {
+    embedding[(simpleHash(item) + 40) % 128] += 0.3;
   });
 
-  // Hash values
-  profile.values.forEach((value, idx) => {
-    const hash = simpleHash(value);
-    embedding[(hash + 20) % 128] += 0.4;
-  });
-
-  // Add noise from lifestyle
-  profile.lifestyle.forEach((item, idx) => {
-    const hash = simpleHash(item);
-    embedding[(hash + 40) % 128] += 0.3;
-  });
-
-  // Normalize
-  const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-  return embedding.map(val => val / (magnitude || 1));
+  const magnitude = Math.sqrt(embedding.reduce((sum: number, val: number) => sum + val * val, 0));
+  return embedding.map((val: number) => val / (magnitude || 1));
 }
-
-/**
- * Simple hash function for deterministic embedding generation
- */
-function simpleHash(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return Math.abs(hash);
-}
-
-/**
- * Cosine similarity between two vectors
- */
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) return 0;
-
-  let dotProduct = 0;
-  let magA = 0;
-  let magB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    magA += a[i] * a[i];
-    magB += b[i] * b[i];
-  }
-
-  const magnitude = Math.sqrt(magA) * Math.sqrt(magB);
-  return magnitude === 0 ? 0 : dotProduct / magnitude;
-}
-
-// =====================
-// PUBLIC API
-// =====================
 
 export class ZeroGComputeClient {
   private questionIndex = 0;
-  private branchQuestions: string[] = [];
 
-  /**
-   * Start a new intake session
-   */
   async startIntake(): Promise<IntakeStartResponse> {
-    // PRODUCTION: POST to 0g compute endpoint
-    // const response = await fetch(`${process.env.NEXT_PUBLIC_0G_ENDPOINT}/intake/start`, {
-    //   method: 'POST',
-    //   headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_0G_API_KEY}` }
-    // });
-    // return response.json();
-
-    // MOCK:
     this.questionIndex = 0;
-    this.branchQuestions = [];
-
     return {
-      agentMessage: "Hi! I'm here to help you find your perfect match. I'll ask you a few questions to understand you better. Let's start: " + QUESTION_BANK[0],
+      agentMessage: "Hi! I'm here to help you find your perfect match. Let's start: " + QUESTION_BANK[0],
       intakeSessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     };
   }
 
-  /**
-   * Process user response and get next question or finalize
-   */
   async nextQuestion(params: {
     intakeSessionId: string;
     userMessage: string;
     history: IntakeMessage[];
   }): Promise<IntakeNextResponse> {
-    const { intakeSessionId, userMessage, history } = params;
-
-    // PRODUCTION: POST to 0g compute endpoint
-    // const response = await fetch(`${process.env.NEXT_PUBLIC_0G_ENDPOINT}/intake/next`, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.NEXT_PUBLIC_0G_API_KEY}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({ sessionId: intakeSessionId, message: userMessage, history })
-    // });
-    // return response.json();
-
-    // MOCK:
     this.questionIndex++;
+    const maxQuestions = 8;
 
-    // Check if user gave very short answer (< 10 words)
-    const isShortAnswer = userMessage.split(' ').length < 10;
-
-    // Check for branch questions
-    const branchCheck = shouldAskBranchQuestion(history);
-    if (branchCheck && branchCheck.ask && !this.branchQuestions.includes(branchCheck.question)) {
-      this.branchQuestions.push(branchCheck.question);
-      return {
-        agentMessage: branchCheck.question,
-        done: false,
-      };
-    }
-
-    // Decide when to stop (8 base questions, up to 10 if short answers)
-    const maxQuestions = isShortAnswer ? 10 : 8;
-    const totalAsked = this.questionIndex + this.branchQuestions.length;
-
-    if (totalAsked >= maxQuestions || this.questionIndex >= QUESTION_BANK.length) {
-      // Finalize
-      const extracted = extractProfileFromHistory(history);
+    if (this.questionIndex >= maxQuestions || this.questionIndex >= QUESTION_BANK.length) {
+      const extracted = extractProfileFromHistory(params.history);
       const summary = generateSummary(extracted);
-
       return {
-        agentMessage: "Thank you for sharing! Let me summarize what I've learned about you. Please review and confirm if this looks correct.",
+        agentMessage: "Thank you! Let me summarize what I've learned. Please review:",
         done: true,
         extracted,
         summary,
       };
     }
 
-    // Continue with next question
     return {
       agentMessage: QUESTION_BANK[this.questionIndex],
       done: false,
     };
   }
 
-  /**
-   * Generate embedding for a completed profile
-   */
   async embedProfile(params: {
     imageUrl: string;
     extractedProfile: ExtractedProfile;
   }): Promise<number[]> {
-    const { imageUrl, extractedProfile } = params;
-
-    // PRODUCTION: POST to 0g compute endpoint
-    // const response = await fetch(`${process.env.NEXT_PUBLIC_0G_ENDPOINT}/embed`, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.NEXT_PUBLIC_0G_API_KEY}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({ imageUrl, profile: extractedProfile })
-    // });
-    // const data = await response.json();
-    // return data.embedding;
-
-    // MOCK:
-    return generateEmbedding(extractedProfile, imageUrl);
-  }
-
-  /**
-   * Rank match candidates by similarity
-   */
-  async rankMatches(params: {
-    userEmbedding: number[];
-    candidateEmbeddings: MatchCandidate[];
-  }): Promise<RankedMatch[]> {
-    const { userEmbedding, candidateEmbeddings } = params;
-
-    // PRODUCTION: POST to 0g compute endpoint
-    // const response = await fetch(`${process.env.NEXT_PUBLIC_0G_ENDPOINT}/rank`, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.NEXT_PUBLIC_0G_API_KEY}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({ userEmbedding, candidates: candidateEmbeddings })
-    // });
-    // return response.json();
-
-    // MOCK: Compute cosine similarity
-    const ranked = candidateEmbeddings.map(candidate => ({
-      wallet: candidate.wallet,
-      score: cosineSimilarity(userEmbedding, candidate.embedding),
-    }));
-
-    // Sort descending by score
-    ranked.sort((a, b) => b.score - a.score);
-
-    return ranked;
-  }
-
-  /**
-   * Generate match pairs from all profiles based on compatibility
-   * This is the NEW function for the DAO voting model
-   */
-  async generateMatchPairs(params: {
-    allProfiles: Array<{
-      wallet_address: string;
-      name: string;
-      age: number;
-      location: string;
-      image_url: string;
-      answers_json: ExtractedProfile;
-      embedding: number[];
-    }>;
-    pairsToGenerate?: number;
-  }): Promise<
-    Array<{
-      userA: string;
-      userB: string;
-      score: number;
-      compatibility: string[];
-    }>
-  > {
-    const { allProfiles, pairsToGenerate = 10 } = params;
-
-    // PRODUCTION: POST to 0g compute endpoint to generate optimal pairs
-    // const response = await fetch(`${process.env.NEXT_PUBLIC_0G_ENDPOINT}/generate-pairs`, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.NEXT_PUBLIC_0G_API_KEY}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({ profiles: allProfiles, count: pairsToGenerate })
-    // });
-    // return response.json();
-
-    // MOCK: Generate pairs based on similarity
-    const pairs: Array<{
-      userA: string;
-      userB: string;
-      score: number;
-      compatibility: string[];
-    }> = [];
-
-    // Create all possible pairs and score them
-    const allPossiblePairs: Array<{
-      userA: string;
-      userB: string;
-      score: number;
-      profileA: any;
-      profileB: any;
-    }> = [];
-
-    for (let i = 0; i < allProfiles.length; i++) {
-      for (let j = i + 1; j < allProfiles.length; j++) {
-        const profileA = allProfiles[i];
-        const profileB = allProfiles[j];
-
-        // Calculate compatibility score
-        const embeddingSimilarity = cosineSimilarity(
-          profileA.embedding,
-          profileB.embedding
-        );
-
-        allPossiblePairs.push({
-          userA: profileA.wallet_address,
-          userB: profileB.wallet_address,
-          score: embeddingSimilarity,
-          profileA,
-          profileB,
-        });
-      }
-    }
-
-    // Sort by score and take top N
-    allPossiblePairs.sort((a, b) => b.score - a.score);
-    const topPairs = allPossiblePairs.slice(0, pairsToGenerate);
-
-    // Generate compatibility reasons for each pair
-    for (const pair of topPairs) {
-      const compatibility = this.findCompatibilityReasons(
-        pair.profileA.answers_json,
-        pair.profileB.answers_json
-      );
-
-      pairs.push({
-        userA: pair.userA,
-        userB: pair.userB,
-        score: pair.score,
-        compatibility,
-      });
-    }
-
-    return pairs;
-  }
-
-  /**
-   * Find common interests and values between two profiles
-   */
-  private findCompatibilityReasons(
-    profileA: ExtractedProfile,
-    profileB: ExtractedProfile
-  ): string[] {
-    const reasons: string[] = [];
-
-    // Common interests
-    const commonInterests = profileA.interests.filter((interest) =>
-      profileB.interests.includes(interest)
-    );
-    if (commonInterests.length > 0) {
-      reasons.push(`Shared interests: ${commonInterests.join(', ')}`);
-    }
-
-    // Common values
-    const commonValues = profileA.values.filter((value) =>
-      profileB.values.includes(value)
-    );
-    if (commonValues.length > 0) {
-      reasons.push(`Common values: ${commonValues.join(', ')}`);
-    }
-
-    // Similar lifestyle
-    const commonLifestyle = profileA.lifestyle.filter((item) =>
-      profileB.lifestyle.includes(item)
-    );
-    if (commonLifestyle.length > 0) {
-      reasons.push(`Similar lifestyle: ${commonLifestyle.join(', ')}`);
-    }
-
-    // Compatible communication styles
-    if (profileA.communicationStyle === profileB.communicationStyle) {
-      reasons.push(`Both prefer ${profileA.communicationStyle} communication`);
-    }
-
-    // Similar goals
-    if (profileA.goals === profileB.goals) {
-      reasons.push(`Aligned on: ${profileA.goals}`);
-    }
-
-    // If no specific reasons, give generic one
-    if (reasons.length === 0) {
-      reasons.push('Compatible personalities based on AI analysis');
-    }
-
-    return reasons;
+    return generateEmbedding(params.extractedProfile);
   }
 }
 
-// Export singleton instance
+// Export singleton for backward compatibility
 export const zeroGClient = new ZeroGComputeClient();

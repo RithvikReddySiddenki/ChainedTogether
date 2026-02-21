@@ -27,7 +27,7 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_A
 // Now import the jobs module (after env is loaded)
 import { createClient } from '@supabase/supabase-js';
 // @ts-ignore - importing from relative path
-import { zeroGClient } from '../src/services/0gComputeClient.ts';
+import { generateMatchPairs } from '../src/services/matchmaking/ogMatchmaker';
 import { keccak256, encodePacked } from 'viem';
 
 const supabase = createClient(
@@ -128,7 +128,7 @@ async function matchGeneratorJob() {
       const existingPairs = await getExistingPairHashes();
       console.log(`[MatchGenerator] Existing pairs: ${existingPairs.size}`);
 
-      const newPairs = await zeroGClient.generateMatchPairs({
+      const newPairs = await generateMatchPairs({
         allProfiles: profiles,
         pairsToGenerate: needed * 2,
       });

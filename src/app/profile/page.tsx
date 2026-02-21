@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WalletConnect } from '@/components/WalletConnect';
@@ -74,14 +74,48 @@ export default function ProfilePage() {
   const [age, setAge] = useState('');
   const [location, setLocation] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [imagePreview, setImagePreview] = useState('');
   const [job, setJob] = useState('');
   const [hobbies, setHobbies] = useState('');
   const [fun, setFun] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI-generated bio
   const [bio, setBio] = useState('');
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Process uploaded image: resize to max 400px and convert to JPEG data URI
+  const processImage = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * (MAX / w)); w = MAX; }
+          else { w = Math.round(w * (MAX / h)); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUri = canvas.toDataURL('image/jpeg', 0.8);
+        setImageUrl(dataUri);
+        setImagePreview(dataUri);
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processImage(file);
+  }, [processImage]);
 
   // ─── Not connected ──────────────────────────────────────
   if (!isConnected) {
@@ -331,14 +365,18 @@ export default function ProfilePage() {
             }}
           >
             <div
-              className="h-20 flex items-center justify-center"
+              className="h-20 flex items-center justify-center relative overflow-hidden"
               style={{
                 background: 'linear-gradient(160deg, #a78bfa, #c084fc)',
               }}
             >
-              <span className="text-white/30 text-4xl font-extralight">
-                {initials}
-              </span>
+              {imagePreview ? (
+                <img src={imagePreview} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <span className="text-white/30 text-4xl font-extralight">
+                  {initials}
+                </span>
+              )}
             </div>
             <div className="p-5">
               <h3 className="font-bold text-lg text-white">
@@ -477,13 +515,57 @@ export default function ProfilePage() {
             placeholder="San Francisco, CA"
           />
 
-          <GlassInput
-            label="Profile Image URL"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://i.pravatar.cc/300?img=1"
-            hint="Tip: use https://i.pravatar.cc/300?img=1 for a placeholder"
-          />
+          {/* Profile Image Upload */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              Profile Photo
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <motion.button
+              type="button"
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200"
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+              }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {imagePreview ? (
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                />
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(255, 255, 255, 0.1)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                </div>
+              )}
+              <div className="text-left">
+                <p className="text-sm text-slate-300">
+                  {imagePreview ? 'Change photo' : 'Upload a photo'}
+                </p>
+                <p className="text-xs text-slate-500">
+                  JPG, PNG, or WebP
+                </p>
+              </div>
+            </motion.button>
+          </div>
 
           <div
             className="my-2"

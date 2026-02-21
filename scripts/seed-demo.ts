@@ -53,7 +53,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
     name: 'Maya Chen',
-    bio: 'Software engineer who loves cooking elaborate meals on weekends. Avid reader of sci-fi novels and always planning my next travel adventure. Looking for someone ambitious and honest who enjoys deep conversations over homemade pasta.',
+    bio: "I'm a software engineer who unwinds by cooking elaborate meals from scratch — my spaghetti carbonara is legendary. When I'm not coding or in the kitchen, you'll find me buried in a sci-fi novel or planning my next backpacking trip.",
     age: 24,
     location: 'San Francisco, CA',
     image_url: 'https://i.pravatar.cc/300?img=5',
@@ -69,7 +69,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     name: 'Liam Park',
-    bio: 'Gym enthusiast and weekend trail runner who plays guitar in a local band. Work in tech but happiest outdoors. Family means everything to me and I want to build something lasting with the right person.',
+    bio: "I hit the trails before sunrise most mornings and play guitar in a local indie band on weekends. I work in tech but honestly feel most alive outdoors — bonus points if you want to join me on a sunrise hike.",
     age: 27,
     location: 'Austin, TX',
     image_url: 'https://i.pravatar.cc/300?img=11',
@@ -85,7 +85,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     name: 'Ava Mitchell',
-    bio: 'Brooklyn-based artist who paints murals by day and plays vinyl records by night. Love wandering farmers markets, trying new recipes, and spontaneous weekend trips. Seeking a genuine, kind soul who appreciates creativity.',
+    bio: "I paint murals around Brooklyn by day and dig through vinyl crates by night. My perfect Saturday involves a farmers market haul, experimenting with a new recipe, and an impromptu road trip if the weather's right.",
     age: 22,
     location: 'Brooklyn, NY',
     image_url: 'https://i.pravatar.cc/300?img=9',
@@ -101,7 +101,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
     name: 'Noah Williams',
-    bio: 'Mountain climber and backcountry skier who reads philosophy on rest days. Work remotely so I can live near the trails. Loyal to my core, value honest communication, and dream of raising a family surrounded by nature.',
+    bio: "I climb mountains, ski backcountry lines, and read philosophy on rest days. Working remotely lets me live ten minutes from the trailhead, which is basically my dream setup. Looking for someone who'd rather wake up in a tent than a hotel.",
     age: 29,
     location: 'Denver, CO',
     image_url: 'https://i.pravatar.cc/300?img=12',
@@ -117,7 +117,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
     name: 'Sophia Reyes',
-    bio: 'Pilates instructor and amateur ceramicist who cooks Mexican family recipes. Passionate about empowering others and building community. Looking for someone kind and driven who loves to create things together.',
+    bio: "I teach Pilates in the mornings, throw pottery in my garage studio, and cook my abuela's tamale recipe every Sunday. I'm happiest when I'm creating something with my hands — even better if it's with someone I care about.",
     age: 25,
     location: 'Los Angeles, CA',
     image_url: 'https://i.pravatar.cc/300?img=25',
@@ -133,7 +133,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x976ea74026e726554db657fa54763abd0c3a0aa9',
     name: 'Ethan Brooks',
-    bio: 'Backend developer and avid hiker who spends evenings reading about space exploration. Prefer quiet weekends in nature over crowded bars. Honest and ambitious, taking my time to find the right connection.',
+    bio: "I write backend code during the week and disappear into the Cascades on weekends. Most evenings you'll find me reading about exoplanets or tinkering with a side project. I'm pretty introverted but open up fast with the right person.",
     age: 26,
     location: 'Seattle, WA',
     image_url: 'https://i.pravatar.cc/300?img=14',
@@ -149,7 +149,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x14dc79964da2c08dda394f80782ef11c7d9283cd',
     name: 'Isabella Torres',
-    bio: 'Travel blogger who has visited 30 countries and collects recipes from every one. Play ukulele badly but enthusiastically. Family-oriented Miami native looking for a loyal partner who values culture and adventure.',
+    bio: "I've traveled to 30 countries and collected a recipe from every single one — my passport and my spice rack are equally full. I also play ukulele terribly but with great enthusiasm. Always down for a spontaneous adventure.",
     age: 23,
     location: 'Miami, FL',
     image_url: 'https://i.pravatar.cc/300?img=32',
@@ -165,7 +165,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f',
     name: 'James Nakamura',
-    bio: 'Jazz pianist and home cook who builds mechanical keyboards as a hobby. Quiet creative who values deep one-on-one conversations over group hangs. Seeking someone honest and thoughtful for a genuine connection.',
+    bio: "I play jazz piano at a little bar downtown and build custom mechanical keyboards when I need to zone out. I'd rather have one great conversation over homemade ramen than be at a party with a hundred people.",
     age: 28,
     location: 'Portland, OR',
     image_url: 'https://i.pravatar.cc/300?img=15',
@@ -181,7 +181,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720',
     name: 'Olivia Andersen',
-    bio: 'Pre-med student and marathon runner who journals every morning. Love camping trips, bookstores, and deep conversations about the future. Fiercely loyal and looking for someone equally ambitious and honest.',
+    bio: "I'm a pre-med student training for my third marathon and I journal every single morning before the sun comes up. On weekends I'm either at a bookstore or on a camping trip — ideally both if I pack the right books.",
     age: 21,
     location: 'Chicago, IL',
     image_url: 'https://i.pravatar.cc/300?img=44',
@@ -197,7 +197,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0xbcd4042de499d14e55001ccbb24a551f3b954096',
     name: 'Daniel Patel',
-    bio: 'Data scientist and CrossFit regular who devours non-fiction books. Passionate about building things that matter and staying healthy. Looking for a committed, honest partner who shares that drive.',
+    bio: "I crunch data by day and crush CrossFit WODs by evening — then unwind with whatever non-fiction book I'm obsessed with that week. I'm driven and health-focused, and I want someone who gets excited about building a life with purpose.",
     age: 30,
     location: 'Boston, MA',
     image_url: 'https://i.pravatar.cc/300?img=53',
@@ -213,7 +213,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x71be63f3384f5fb98995898a86b02fb2426c5788',
     name: 'Chloe Kim',
-    bio: 'Singer-songwriter who teaches cooking classes on weekends. Love painting outdoors, farmers markets, and potluck dinners with friends. Family is everything, looking for someone kind who wants to build community together.',
+    bio: "I write songs during the week and teach cooking classes on Saturdays — food and music are basically my love languages. My happy place is a potluck dinner with close friends or painting outdoors when the light is just right.",
     age: 24,
     location: 'Nashville, TN',
     image_url: 'https://i.pravatar.cc/300?img=47',
@@ -229,7 +229,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0xfabb0ac9d68b0b445fb7357272ff202c5651694a',
     name: 'Ryan Cooper',
-    bio: 'Rock climbing guide and amateur photographer who builds drones for fun. Love road trips to national parks and camping under the stars. Loyal and adventurous, taking my time to find someone who matches my energy.',
+    bio: "I guide rock climbing trips for a living and build FPV drones as my nerdy side hobby. Most of my free time involves a tent, a national park, and zero cell service. I'm loyal and adventurous — looking for someone who keeps up.",
     age: 26,
     location: 'Phoenix, AZ',
     image_url: 'https://i.pravatar.cc/300?img=57',
@@ -245,7 +245,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0x1cbd3b2770909d4e10f157cabc84c7264073c9ec',
     name: 'Emma Larsen',
-    bio: 'Children\'s book illustrator who bakes sourdough and plays folk guitar. Love quiet evenings reading, cozy coffee shops, and long walks. Honest and family-oriented, seeking a deep meaningful connection.',
+    bio: "I illustrate children's books, bake sourdough that actually turns out well, and strum folk songs on my beat-up guitar. My ideal evening is a cozy coffee shop, a good novel, and nowhere I need to be. Quiet but full of warmth.",
     age: 22,
     location: 'Minneapolis, MN',
     image_url: 'https://i.pravatar.cc/300?img=38',
@@ -261,7 +261,7 @@ const DEMO_PROFILES: DemoProfile[] = [
   {
     wallet_address: '0xdf3e18d64bc6a983f673ab319ccae4f1a57c7097',
     name: 'Marcus Johnson',
-    bio: 'Music producer and gym rat who builds apps on the side. Love hiking with my dog, live concerts, and weekend basketball games. Loyal and driven, looking for someone equally committed to growth and honesty.',
+    bio: "I produce beats in my home studio and hit the gym before most people's alarms go off. On weekends I hike with my golden retriever, catch live shows, and run pickup basketball games. I bring the same energy to everything I do.",
     age: 27,
     location: 'Atlanta, GA',
     image_url: 'https://i.pravatar.cc/300?img=60',
@@ -348,7 +348,7 @@ async function main() {
     allProfiles.push({
       wallet_address: myWallet,
       name: 'You (Demo)',
-      bio: 'Blockchain enthusiast and builder who loves exploring new tech. Enjoy traveling, live music, and staying active. Looking for genuine connections with honest, loyal, ambitious people.',
+      bio: "I'm deep into blockchain and love building things that push the boundaries of what's possible. When I'm not coding, I'm chasing live music, exploring new cities, or trying to beat my running PR.",
       age: 25,
       location: 'Your City',
       image_url: 'https://i.pravatar.cc/300?img=68',
